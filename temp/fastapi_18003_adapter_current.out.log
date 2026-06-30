@@ -1,5 +1,0 @@
-INFO:     127.0.0.1:57822 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57960 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58018 - "GET /sse?session_id=unit-live-callback-after-restart HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58019 - "POST /callback HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60874 - "GET /health HTTP/1.1" 200 OK
