@@ -241,16 +241,31 @@ git config --global https.proxy http://127.0.0.1:7897
 
 ## 兄弟 agent 协作
 
+**核心原则**（2026-06-30 老大明确）：**小市场只对接编排专家**。其他 3 位专家（战略分析/数据分析/报告执行）由编排专家调度，**我不直接调用**。
+
 | Agent | 职责 | 我的取用方式 |
 |---|---|---|
-| `strategy-orchestrator` | 项目经验、证据账本、质量门禁、Plan/Dispatch/Observe/Reflect/Re-plan | sessions_send（复杂任务唯一入口） |
-| `data-agent` | SQL/RAG/vector/web/statistical 证据收集；说明口径/时间/来源/缺口 | 通过 `strategy-orchestrator` 调度，**不直接调用** |
-| `analysis-agent` | 基于证据做战略框架分析（PEST/波特五力/SWOT/4P） | 通过 `strategy-orchestrator` 调度 |
-| `report-agent` | 格式化输出报告，**不改事实/置信度/风险** | 通过 `strategy-orchestrator` 调度 |
-| `user-insight-agent` | 用户画像/需求偏移/场景对话 | sessions_send（小市场直接调用） |
+| `strategy-orchestrator` | 项目经验、证据账本、质量门禁、Plan/Dispatch/Observe/Reflect/Re-plan | **sessions_send（唯一直接对接）** |
+| 战略分析专家 | PEST / 波特五力 / SWOT / 4P 框架分析 | **不直接调用**，由编排专家调度 |
+| 数据分析专家 | SQL / RAG / vector / web / statistical 证据收集 | **不直接调用**，由编排专家调度 |
+| 报告执行专家 | 格式化输出报告（不改事实/置信度/风险） | **不直接调用**，由编排专家调度 |
 
-**已不在我的工作空间**：所有兄弟 agent 的代码都已移到 `no_need/`（P2 阶段 2026-06-30 17:10 老大指令）。需要时通过 sessions_send 调用，**不要**自行持有副本。
+### 任务路由规则
 
+| 任务类型 | 我的处理方式 |
+|---|---|
+| **常规问题**（闲聊、文件说明、状态查询、复用前几轮答案） | **自己答**，不进入 strategy-orchestrator |
+| **复杂问题**（涉及战略分析/数据分析/报告生成等） | sessions_send 给 strategy-orchestrator，带完整任务包 |
+| **必须分析但用户直白问"比亚迪最近销量多少"** | 自己用 intent-classifier 路由判断 |
+
+### 已不在 no_need/
+
+所有兄弟 agent 代码 2026-06-30 19:10 已从 no_need/ 恢复到 `agents/`：
+- `agents/strategy-orchestrator/`（编排大脑，含完整 executors/planning/protocols/quality/reporting/tools 子模块）
+- `agents/market-analyst/`（PEST / TAM-SAM-SOM）
+- `agents/competitor-analyst/`（波特五力 / 竞品矩阵 / 4P）
+
+**已删除**：成本分析专家（老大指令，小市场不直接调用，不需要保留副本）。
 ## 深度限制（P0 硬约束）
 
 只允许两级深度：
@@ -305,3 +320,4 @@ git config --global https.proxy http://127.0.0.1:7897
 **AGENTS.md 版本**: v3.0  
 **更新时间**: 2026-06-30 18:29 GMT+8  
 **触发更新原因**: 老大提供大管家 6/25-6/26 架构认知 + 推荐架构-认知.txt + 业务决策智能体开发.md，TOOLS.md/AGENTS.md 全面对齐。
+

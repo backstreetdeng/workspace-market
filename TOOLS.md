@@ -272,15 +272,19 @@ Receive → Plan → Dispatch_Data → Dispatch_Analysis → Dispatch_Report →
 
 ### 6.1 独立 agent（4 个）— 负责具体专业能力的执行
 
-| Agent | 职责 | 取用方式 | 备份位置 |
-|---|---|---|---|
-| 战略分析专家 | PEST / 波特五力 / SWOT / 4P 框架分析 | sessions_send | `no_need/agents/` |
-| 数据分析专家 | SQL / RAG / vector / web 证据收集 | sessions_send | `no_need/agents/`（部分） |
-| 报告执行专家 | 格式化输出报告（不改事实/置信度/风险）| sessions_send | `no_need/agents/`（部分） |
-| 成本分析专家 | 成本结构分析 | sessions_send | `no_need/agents/` |
+兄弟 agent 体系：编排专家调度 3 个执行专家；**小市场只对接编排专家**，不直接调用任何执行专家。
 
-**注意**：上面的"战略分析专家"是基于我（小市场）能力拆分出去的独立 agent，**不是**我自己（2026-06-29 老大明确）。同样，报告执行专家也是独立 agent。
+| Agent | 职责 | 我的取用方式 |
+|---|---|---|
+| **战略编排专家** (`strategy-orchestrator`) | 编排大脑 + 证据账本 + 质量门禁 | **sessions_send（唯一直接对接）** |
+| 战略分析专家 | PEST / 波特五力 / SWOT / 4P 框架分析 | 通过编排专家调度，**不直接调用** |
+| 数据分析专家 | SQL / RAG / vector / web 证据收集 | 通过编排专家调度，**不直接调用** |
+| 报告执行专家 | 格式化输出报告（不改事实/置信度/风险） | 通过编排专家调度，**不直接调用** |
 
+**注意**：
+- "战略分析专家"是基于我（小市场）能力拆分出去的独立 agent，**不是**我自己（2026-06-29 老大明确）
+- "成本分析专家"已被老大删除（2026-06-30 19:15，因为小市场不直接调用，no_need 是"不要的文件"目录）
+- 4 个 agent 代码都在 `agents/`（P5 阶段从 no_need/ 恢复，老大指令 2026-06-30 19:10）
 ### 6.2 核心 skill（8 个）— 各 agent 调用的能力单元
 
 | Skill | 归属 | 用途 | 备份位置 |
@@ -354,5 +358,6 @@ Receive → Plan → Dispatch_Data → Dispatch_Analysis → Dispatch_Report →
 **TOOLS.md 版本**: v3.0  
 **更新时间**: 2026-06-30 18:29 GMT+8  
 **触发重写原因**: 老大提供大管家 6/25-6/26 架构认知 + 推荐架构-认知.txt + 业务决策智能体开发.md，发现 TOOLS.md 描述的工具链大部分不属于市场战略 Agent（小市场），需要全面重构。
+
 
 
