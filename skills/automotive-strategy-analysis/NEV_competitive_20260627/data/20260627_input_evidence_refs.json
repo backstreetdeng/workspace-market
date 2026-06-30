@@ -1,0 +1,23 @@
+﻿{
+  ""task_id"": ""analysis_nev_competitive_001"",
+  ""parent_task_id"": ""orch_nev_20260627_001"",
+  ""analysis_agent"": ""analysis-agent"",
+  ""input_evidence_summary"": {
+    ""source"": ""data-agent evidence package"",
+    ""file"": ""C:\\Users\\11489\\.openclaw\\workspace-analysis-agent\\skills\\automotive-strategy-analysis\\BYD_strategy_20250627\\data\\20260627_evidence_ledger.csv"",
+    ""record_count"": 22,
+    ""date"": ""2026-06-27""
+  },
+  ""supplementary_sources"": [
+    {
+      ""source"": ""CnEVPost"",
+      ""url"": ""https://cnevpost.com"",
+      ""used_for"": ""Aistaland GT7 launch, Li Auto Macau entry, Nio Onvo L60 deliveries""
+    },
+    {
+      ""source"": ""汽车之家"",
+      ""url"": ""https://www.autohome.com.cn"",
+      ""used_for"": ""BYD Tang EV launch details, Audi E7X launch details""
+    }
+  ]
+}

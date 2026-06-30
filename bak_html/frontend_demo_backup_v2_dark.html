@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>汽车市场战略智能体</title>
+  <style>
+    :root {
+      --ink: #eaf2ff;
+      --ink-dark: #101827;
+      --muted: #8ea5c8;
+      --line: rgba(125, 211, 252, 0.18);
+      --paper: rgba(9, 18, 34, 0.78);
+      --paper-strong: rgba(13, 28, 52, 0.92);
+      --wash: #06101f;
+      --blue: #38bdf8;
+      --blue-2: #60a5fa;
+      --cyan: #22d3ee;
+      --green: #34d399;
+      --amber: #fbbf24;
+      --red: #fb7185;
+      --violet: #a78bfa;
+      --shadow: 0 24px 70px rgba(0, 0, 0, 0.36);
+      --glow: 0 0 30px rgba(34, 211, 238, 0.28);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 16% 8%, rgba(34, 211, 238, 0.20), transparent 28%),
+        radial-gradient(circle at 88% 16%, rgba(96, 165, 250, 0.24), transparent 32%),
+        linear-gradient(135deg, #04101f 0%, #07192f 42%, #08101f 100%);
+      line-height: 1.55;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background-image:
+        linear-gradient(rgba(125, 211, 252, 0.055) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(125, 211, 252, 0.055) 1px, transparent 1px);
+      background-size: 42px 42px;
+      mask-image: radial-gradient(circle at center, black 0%, transparent 78%);
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+    }
+
+    .sidebar {
+      background:
+        linear-gradient(180deg, rgba(4, 12, 26, 0.96), rgba(8, 22, 43, 0.92)),
+        linear-gradient(135deg, rgba(34, 211, 238, 0.12), transparent);
+      color: #e5e7eb;
+      padding: 22px 18px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+      border-right: 1px solid rgba(125, 211, 252, 0.18);
+      box-shadow: 18px 0 60px rgba(0, 0, 0, 0.28);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid rgba(255,255,255,.12);
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, var(--cyan), var(--blue-2));
+      color: #02111f;
+      font-weight: 800;
+      box-shadow: 0 0 28px rgba(34, 211, 238, 0.45);
+    }
+
+    .brand-title { font-size: 17px; font-weight: 700; }
+    .brand-sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+
+    .nav-title {
+      margin: 8px 0;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+
+    .nav-item {
+      padding: 11px 12px;
+      border-radius: 8px;
+      color: #cbd5e1;
+      font-size: 14px;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .nav-item.active {
+      background: linear-gradient(90deg, rgba(34, 211, 238, 0.20), rgba(96, 165, 250, 0.10));
+      color: #fff;
+      border: 1px solid rgba(125, 211, 252, 0.18);
+    }
+
+    .db-card {
+      margin-top: auto;
+      padding: 14px;
+      border: 1px solid rgba(125, 211, 252, 0.18);
+      border-radius: 8px;
+      background: rgba(2, 10, 24, 0.50);
+      font-size: 13px;
+      box-shadow: inset 0 0 34px rgba(34, 211, 238, 0.06);
+    }
+
+    .db-card strong { color: #fff; }
+    .db-line { display: flex; justify-content: space-between; margin-top: 8px; color: #cbd5e1; }
+
+    .main {
+      padding: 24px;
+      max-width: 1460px;
+      width: 100%;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 20px;
+    }
+
+    .title h1 {
+      margin: 0;
+      font-size: 28px;
+      letter-spacing: 0;
+      color: #f8fbff;
+      text-shadow: 0 0 24px rgba(56, 189, 248, 0.22);
+    }
+
+    .title p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(7, 18, 36, 0.74);
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #94a3b8;
+    }
+
+    .dot.ok { background: var(--green); }
+    .dot.bad { background: var(--red); }
+    .dot.run { background: var(--amber); animation: pulse 1.4s infinite; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .5; transform: scale(1.3); }
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(420px, 0.9fr) minmax(0, 1.25fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      backdrop-filter: blur(18px);
+      position: relative;
+    }
+
+    .panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border-radius: 8px;
+      background: linear-gradient(135deg, rgba(34, 211, 238, 0.10), transparent 34%, rgba(96, 165, 250, 0.07));
+    }
+
+    .panel-head {
+      min-height: 58px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(2, 10, 24, 0.32);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .panel-title {
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #f8fbff;
+    }
+
+    .panel-body { padding: 18px; }
+
+    .quick-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .quick {
+      border: 1px solid var(--line);
+      background: rgba(15, 34, 62, 0.72);
+      color: #cfe4ff;
+      border-radius: 8px;
+      padding: 10px 12px;
+      text-align: left;
+      cursor: pointer;
+      font-size: 13px;
+      min-height: 44px;
+    }
+
+    .quick:hover {
+      border-color: var(--blue-2);
+      color: #fff;
+      background: rgba(34, 211, 238, 0.12);
+      box-shadow: var(--glow);
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 118px;
+      resize: vertical;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 13px 14px;
+      font: inherit;
+      outline: none;
+      color: var(--ink);
+      background: rgba(2, 10, 24, 0.56);
+      color: #eaf2ff;
+    }
+
+    textarea:focus {
+      border-color: var(--blue-2);
+      box-shadow: 0 0 0 3px rgba(51,85,153,.12);
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-top: 12px;
+    }
+
+    select, input {
+      height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 10px;
+      background: rgba(2, 10, 24, 0.66);
+      color: #d7e8ff;
+      font: inherit;
+      font-size: 13px;
+    }
+
+    .btn {
+      height: 40px;
+      padding: 0 16px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: var(--blue);
+      color: #02111f;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      background: var(--cyan);
+      box-shadow: var(--glow);
+      transform: translateY(-1px);
+    }
+    .btn:disabled { background: #94a3b8; cursor: not-allowed; }
+
+    .btn.secondary {
+      background: #fff;
+      color: #d7e8ff;
+      border-color: var(--line);
+      background: rgba(8, 22, 43, 0.72);
+    }
+
+    .btn.secondary:hover {
+      color: var(--blue);
+      border-color: var(--blue-2);
+      background: rgba(34, 211, 238, 0.10);
+    }
+
+    .steps {
+      display: grid;
+      gap: 10px;
+    }
+
+    .step {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: rgba(9, 22, 43, 0.72);
+    }
+
+    .step.active {
+      border-color: rgba(51,85,153,.45);
+      background: linear-gradient(90deg, rgba(34, 211, 238, 0.16), rgba(96, 165, 250, 0.08));
+      box-shadow: var(--glow);
+    }
+
+    .step.done {
+      border-color: rgba(4,120,87,.25);
+      background: rgba(16, 185, 129, 0.12);
+    }
+
+    .step-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .step-name { font-weight: 700; font-size: 14px; }
+    .step-status { font-size: 12px; color: var(--muted); }
+    .step-summary { font-size: 13px; color: #b9cdea; min-height: 20px; }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: rgba(9, 22, 43, 0.68);
+    }
+
+    .metric-label { font-size: 12px; color: var(--muted); }
+    .metric-value { margin-top: 4px; font-size: 20px; font-weight: 800; color: var(--cyan); }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 10px 0 0;
+    }
+
+    .chip {
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 12px;
+      background: rgba(34, 211, 238, 0.14);
+      color: #baf2ff;
+      border: 1px solid rgba(34, 211, 238, 0.20);
+    }
+
+    .chip.warn {
+      background: rgba(251, 191, 36, 0.14);
+      color: #fde68a;
+    }
+
+    .report {
+      max-height: calc(100vh - 300px);
+      overflow: auto;
+      padding-right: 4px;
+      font-size: 14px;
+      color: #dbeafe;
+    }
+
+    .report h1, .report h2, .report h3 {
+      margin: 16px 0 8px;
+      line-height: 1.35;
+    }
+
+    .report h1 { font-size: 21px; }
+    .report h2 {
+      font-size: 16px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .report p { margin: 8px 0; }
+    .report ul { margin: 8px 0 12px 20px; padding: 0; }
+    .report li { margin: 6px 0; }
+    .report strong { color: #7dd3fc; }
+
+    .log {
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(2, 8, 23, 0.88);
+      color: #baf2ff;
+      padding: 12px;
+      max-height: 180px;
+      overflow: auto;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      box-shadow: inset 0 0 32px rgba(34, 211, 238, 0.08);
+    }
+
+    .empty {
+      min-height: 280px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: var(--muted);
+      border: 1px dashed rgba(125, 211, 252, 0.26);
+      border-radius: 8px;
+      background: rgba(9, 22, 43, 0.45);
+      padding: 28px;
+    }
+
+    @media (max-width: 1080px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { position: static; height: auto; }
+      .grid { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">AI</div>
+        <div>
+          <div class="brand-title">汽车市场战略智能体</div>
+          <div class="brand-sub">Strategy Orchestrator Live</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="nav-title">功能</div>
+        <div class="nav-item active"><span>市场分析窗口</span><span>在线</span></div>
+        <div class="nav-item"><span>RAG 知识库</span><span id="navDb">检测中</span></div>
+        <div class="nav-item"><span>质量门禁</span><span>8项</span></div>
+      </div>
+
+      <div class="db-card">
+        <strong>当前数据库范围</strong>
+        <div class="db-line"><span>连接</span><span id="dbConnected">检测中</span></div>
+        <div class="db-line"><span>Documents</span><span id="dbDocs">-</span></div>
+        <div class="db-line"><span>Chunks</span><span id="dbChunks">-</span></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div class="title">
+          <h1>可视化联调控制台</h1>
+          <p>前端页面通过 SSE 连接本地后端，后端调用 strategy-orchestrator 和当前 PG/RAG 数据。</p>
+        </div>
+        <div class="status-pill"><span class="dot" id="statusDot"></span><span id="statusText">检查服务中</span></div>
+      </div>
+
+      <div class="grid">
+        <section class="panel">
+          <div class="panel-head">
+            <div class="panel-title">输入与执行</div>
+            <button class="btn secondary" id="healthBtn" type="button">刷新状态</button>
+          </div>
+          <div class="panel-body">
+            <div class="quick-grid">
+              <button class="quick" data-q="分析比亚迪最近12个月市场策略">比亚迪市场策略</button>
+              <button class="quick" data-q="评估泰国电动车政策对中国车企出口的影响">泰国政策影响</button>
+              <button class="quick" data-q="评估15-20万新能源SUV市场机会">15-20万新能源SUV机会</button>
+              <button class="quick" data-q="分析2026年乘用车市场宏观趋势和政策机会">宏观趋势与政策机会</button>
+            </div>
+
+            <textarea id="questionInput" placeholder="输入你的市场分析问题，例如：分析比亚迪最近12个月市场策略">分析比亚迪最近12个月市场策略</textarea>
+
+            <div class="controls">
+              <select id="analysisType">
+                <option value="">自动识别类型</option>
+                <option value="competitor">竞品分析</option>
+                <option value="policy">政策影响</option>
+                <option value="opportunity">机会评估</option>
+                <option value="market">市场趋势</option>
+                <option value="comprehensive">综合研究</option>
+              </select>
+              <input id="timeRange" value="最近12个月" aria-label="时间范围" />
+              <button class="btn" id="runBtn" type="button">开始分析</button>
+            </div>
+
+            <div style="margin-top:18px;" class="panel-title">智能体执行过程</div>
+            <div class="steps" id="steps"></div>
+            <div class="log" id="eventLog">等待执行...</div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div class="panel-title">分析结果</div>
+            <button class="btn secondary" id="copyBtn" type="button">复制报告</button>
+            <button class="btn secondary" id="generatePptBtn" type="button">生成PPT</button>
+          </div>
+          <div class="panel-body">
+            <div class="metrics">
+              <div class="metric"><div class="metric-label">置信度</div><div class="metric-value" id="mConfidence">-</div></div>
+              <div class="metric"><div class="metric-label">质量门禁</div><div class="metric-value" id="mQuality">-</div></div>
+              <div class="metric"><div class="metric-label">证据数</div><div class="metric-value" id="mEvidence">-</div></div>
+              <div class="metric"><div class="metric-label">耗时</div><div class="metric-value" id="mTime">-</div></div>
+            </div>
+            <div class="chips" id="sourceChips"></div>
+            <div class="chips" id="warningChips"></div>
+            <div class="report" id="reportArea">
+              <div class="empty">
+                <div>
+                  <strong>还没有分析结果</strong>
+                  <p>点击“开始分析”后，这里会展示智能体生成的完整报告。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const API_BASE = location.port === "8003" ? location.origin : "http://localhost:8003";
+    const stepsModel = [
+      ["stage1", "意图识别"],
+      ["stage2", "数据检索"],
+      ["stage3", "自主编排"],
+      ["stage4", "质量检查"],
+      ["stage5", "报告生成"]
+    ];
+
+    const el = (id) => document.getElementById(id);
+    let lastReport = "";
+    let running = false;
+
+    function initSteps() {
+      el("steps").innerHTML = stepsModel.map(([id, name]) => `
+        <div class="step" id="box-${id}">
+          <div class="step-top">
+            <div class="step-name">${name}</div>
+            <div class="step-status" id="status-${id}">待执行</div>
+          </div>
+          <div class="step-summary" id="summary-${id}">-</div>
+        </div>
+      `).join("");
+    }
+
+    function setStatus(kind, text) {
+      const dot = el("statusDot");
+      dot.className = "dot " + (kind || "");
+      el("statusText").textContent = text;
+    }
+
+    function updateStep(stage, status, summary) {
+      const box = el(`box-${stage}`);
+      if (!box) return;
+      box.classList.remove("active", "done");
+      if (status === "running") box.classList.add("active");
+      if (status === "done") box.classList.add("done");
+      el(`status-${stage}`).textContent = status === "done" ? "完成" : status === "running" ? "执行中" : status || "更新";
+      if (summary) el(`summary-${stage}`).textContent = summary;
+    }
+
+    function appendLog(message) {
+      const log = el("eventLog");
+      const now = new Date().toLocaleTimeString();
+      log.textContent += `\n[${now}] ${message}`;
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function resetResult() {
+      lastReport = "";
+      el("mConfidence").textContent = "-";
+      el("mQuality").textContent = "-";
+      el("mEvidence").textContent = "-";
+      el("mTime").textContent = "-";
+      el("sourceChips").innerHTML = "";
+      el("warningChips").innerHTML = "";
+      el("reportArea").innerHTML = `<div class="empty"><div><strong>智能体正在分析</strong><p>请观察左侧阶段进度。</p></div></div>`;
+      el("eventLog").textContent = "开始接收 SSE 事件...";
+      initSteps();
+    }
+
+    function markdownToHtml(markdown) {
+      const safe = (markdown || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+      const lines = safe.split(/\r?\n/);
+      let html = "";
+      let inList = false;
+
+      for (const raw of lines) {
+        const line = raw.trimEnd();
+        if (!line) {
+          if (inList) { html += "</ul>"; inList = false; }
+          continue;
+        }
+        if (line.startsWith("# ")) {
+          if (inList) { html += "</ul>"; inList = false; }
+          html += `<h1>${line.slice(2)}</h1>`;
+        } else if (line.startsWith("## ")) {
+          if (inList) { html += "</ul>"; inList = false; }
+          html += `<h2>${line.slice(3)}</h2>`;
+        } else if (line.startsWith("### ")) {
+          if (inList) { html += "</ul>"; inList = false; }
+          html += `<h3>${line.slice(4)}</h3>`;
+        } else if (line.startsWith("- ")) {
+          if (!inList) { html += "<ul>"; inList = true; }
+          html += `<li>${line.slice(2).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")}</li>`;
+        } else {
+          if (inList) { html += "</ul>"; inList = false; }
+          html += `<p>${line.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")}</p>`;
+        }
+      }
+      if (inList) html += "</ul>";
+      return html || "<p>暂无报告内容。</p>";
+    }
+
+    function showComplete(data) {
+    window.lastAnalysisData = data;
+      const confidence = Number(data.confidence || 0);
+      lastReport = data.report || "";
+      el("mConfidence").textContent = `${Math.round(confidence * 100)}%`;
+      el("mQuality").textContent = data.quality_passed ? "通过" : "未过";
+      el("mEvidence").textContent = data.evidence_count ?? "-";
+      el("mTime").textContent = data.execution_time ? `${data.execution_time}s` : "-";
+
+      el("sourceChips").innerHTML = (data.sources || []).map(s => `<span class="chip">${s}</span>`).join("");
+      el("warningChips").innerHTML = (data.missing_or_uncertain || []).map(s => `<span class="chip warn">${s}</span>`).join("");
+      el("reportArea").innerHTML = markdownToHtml(lastReport);
+      setStatus(data.success ? "ok" : "bad", data.success ? "分析完成" : "分析失败");
+    }
+
+    async function refreshHealth() {
+      try {
+        const res = await fetch(`${API_BASE}/health`);
+        const data = await res.json();
+        const db = data.db || {};
+        setStatus("ok", "后端已连接");
+        el("dbConnected").textContent = db.connected ? "正常" : "异常";
+        el("dbDocs").textContent = db.documents ?? "-";
+        el("dbChunks").textContent = db.chunks ?? "-";
+        el("navDb").textContent = db.connected ? "可用" : "异常";
+      } catch (err) {
+        setStatus("bad", "后端未连接");
+        el("dbConnected").textContent = "异常";
+        el("navDb").textContent = "离线";
+      }
+    }
+
+    async function runAnalysis() {
+      if (running) return;
+      const question = el("questionInput").value.trim();
+      if (!question) {
+        alert("请输入分析问题");
+        return;
+      }
+
+      running = true;
+      el("runBtn").disabled = true;
+      el("runBtn").textContent = "分析中";
+      setStatus("run", "智能体运行中");
+      resetResult();
+
+      try {
+        const res = await fetch(`${API_BASE}/analyze_sse`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            question,
+            analysis_type: el("analysisType").value || null,
+            time_range: el("timeRange").value || "最近12个月",
+            max_cycles: 3
+          })
+        });
+
+        if (!res.ok || !res.body) {
+          throw new Error(`请求失败：HTTP ${res.status}`);
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          buffer = buffer.replace(/\r\n/g, "\n");
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() || "";
+
+          for (const part of parts) {
+            const eventLine = part.split("\n").find(line => line.startsWith("event:"));
+            const dataLine = part.split("\n").find(line => line.startsWith("data:"));
+            if (!eventLine || !dataLine) continue;
+            const event = eventLine.slice(6).trim();
+            const data = JSON.parse(dataLine.slice(5).trim());
+
+            if (event === "progress") {
+              updateStep(data.stage, data.status, data.summary);
+              appendLog(`${data.stage_name || data.stage}: ${data.summary || data.status}`);
+            } else if (event === "complete") {
+              updateStep("stage5", "done", "完整报告已返回。");
+              appendLog(`complete: confidence=${data.confidence}, quality=${data.quality_passed}`);
+              showComplete(data);
+            } else if (event === "error") {
+              throw new Error(data.error || "后端返回错误");
+            }
+          }
+        }
+      } catch (err) {
+        setStatus("bad", "分析失败");
+        appendLog(`ERROR: ${err.message}`);
+        el("reportArea").innerHTML = `<div class="empty"><div><strong>分析失败</strong><p>${err.message}</p></div></div>`;
+      } finally {
+        running = false;
+        el("runBtn").disabled = false;
+        el("runBtn").textContent = "开始分析";
+      }
+    }
+
+    document.querySelectorAll(".quick").forEach(btn => {
+      btn.addEventListener("click", () => {
+        el("questionInput").value = btn.dataset.q;
+      });
+    });
+
+    el("runBtn").addEventListener("click", runAnalysis);
+    el("healthBtn").addEventListener("click", refreshHealth);
+    el("copyBtn").addEventListener("click", async () => {
+      if (!lastReport) return;
+      await navigator.clipboard.writeText(lastReport);
+      appendLog("报告已复制到剪贴板。");
+    });
+    el("generatePptBtn").addEventListener("click", async () => {
+      if (!lastReport) { alert("请先生成分析报告"); return; }
+      const btn = el("generatePptBtn");
+      btn.disabled = true;
+      btn.textContent = "生成中...";
+      try {
+        const res = await fetch(API_BASE + "/generate_ppt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            question: el("questionInput").value,
+            report_content: lastReport,
+            analysis_data: window.lastAnalysisData || {}
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          window.open(data.ppt_url, "_blank");
+          appendLog("PPT已生成: " + data.ppt_path);
+        } else {
+          alert("PPT生成失败: " + data.error);
+        }
+      } catch(err) {
+        alert("PPT生成失败: " + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "生成PPT";
+      }
+    });
+
+    el("questionInput").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        runAnalysis();
+      }
+    });
+
+    initSteps();
+    refreshHealth();
+  </script>
+</body>
+</html>
+      color: #f8fbff;

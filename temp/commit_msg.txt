@@ -1,0 +1,25 @@
+P2: 22:59 pre-compaction memory flush - 追加 22:18-22:59 期间事件
+
+追加内容（22:18+ session 的记忆）:
+1. 22:21 老大 @ 小市场 单独测试 - 22:23 我回"是，能收到 ✅"
+2. 22:40 老大 @ 3 个 agent 问"下一步测什么" - 编排+大管家倾向 chat.html
+3. 22:46 编排专家对小市场预期：tool allowlist + openai-codex API key + push code
+4. 22:56 老大让"你们三位"听大管家指挥开始测试
+5. 5 阶段清单现状（基于 6/25 架构 + 6/26 修复）
+6. 我（小市场）工具配置核查：✅ push + ✅ tool allowlist + ❌ OPENAI_API_KEY 空
+7. openclaw.json 全局配置要点（22:46 核查）
+
+新 LRN:
+- LRN-2026-06-29-006：必须核对 @ 列表里每一个 agent 名，不能凭印象"看起来没我"就 NO_REPLY
+- LRN-2026-06-29-007：不要抢活（22:43 抢了 chat.html 改造的活，大管家 22:44 反驳）
+- LRN-2026-06-29-008：tool allowlist 检查要包括全局 openclaw.json + .env（区分"缺失"和"空字符串"）
+
+当前任务状态:
+- 老大 22:56 让"你们三位"听大管家指挥开始测试
+- 我（小市场）等大管家通知阶段 2/3/5 起步
+- OPENAI_API_KEY 空——影响 minimax fallback——等老大补
+
+编码:
+- WT: UTF-8 without BOM + CRLF (13477 字节, 187 行)
+- HEAD: UTF-8 without BOM + LF
+- git diff: 74 insertions

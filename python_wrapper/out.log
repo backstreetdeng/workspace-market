@@ -1,0 +1,6 @@
+INFO:     127.0.0.1:64839 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64861 - "GET /health HTTP/1.1" 200 OK
+已加载环境配置: E:\AI\data\envs\car_agent_env\.env
+INFO:     127.0.0.1:64915 - "POST /analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65425 - "GET /frontend_demo.html HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65425 - "GET /health HTTP/1.1" 200 OK
