@@ -525,3 +525,31 @@ PowerShell + Windows 默认 GBK 环境下做多文件 / 多行代码精确替换
 - 追加 .learnings/ 等可能跨平台读的文件：用 Python `open(..., 'a', encoding='utf-8', newline='')` 保持 LF 行尾
 
 ---
+## [LRN-20260630-014] critical
+**Logged**: 2026-06-30T22:08+08:00
+**Priority**: critical
+**Status**: pending
+
+### Summary
+LRN-013 (PowerShell GBK 陷阱) 已记录但未制度化, c17d740 同一陷阱重复发生.
+
+### Details
+- LRN-20260630-013 949594a 已记 PowerShell GBK 误读 → UTF-8 mojibake
+- 但只放 .learnings/LEARNINGS.md, 没 promote 到 AGENTS.md 硬约束
+- c17d740 (P6-fix, 21:27) commit 后 MEMORY.md 全文 425 行乱码 (小市场 → 灏忓競)
+- 同一陷阱反复发生, 老大 22:07 明确批评效率低
+
+### Root Cause (3 重失败)
+1. **Learning 没 promote**: LRN-013 没进 AGENTS.md / SOUL.md 必做清单
+2. **Review 三件套缺一项**: 中文文件 commit 前后没 byte-verify (BOM / CRLF / 第一行 hex)
+3. **跨 session 知识不同步**: 大管家 session commit 时没有 LRN-013 context
+
+### Suggested Action (硬约束)
+1. **AGENTS.md 新增章节** §「Commit 质量门禁」增加第 4 件: 「中文文件 byte-verify」
+2. **commit 前 checklist** (脚本化):
+   - 找到本次 commit 改动的所有 *.md / *.py / *.txt
+   - 每个文件读首 100 字节 hex, 校验: no BOM / 全部 LF / 首字节不是 EF BB BF
+   - 任一文件不通过 → 拒绝 commit
+3. **跨 session**: 所有 LRN critical 项必须 promote 到 AGENTS.md, 不只放 .learnings/
+4. **.gitattributes** 考虑加 *.md text eol=lf 强制 LF
+
