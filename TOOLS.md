@@ -1,445 +1,328 @@
-﻿# TOOLS.md - 市场战略分析师工具集
+﻿# TOOLS.md - 小市场（market_strategy）工具集
 
-## 统一运行约定（P0）
-
-所有 `E:\AI\data\envs\car_agent_env\ai-decision\rag-engine` 下的市场数据、RAG、竞品、配置、报告工具，必须使用虚拟环境解释器：
-
-```bash
-E:\AI\data\envs\car_agent_env\Scripts\python.exe
-```
-
-不要使用系统默认 `python`。默认工作目录建议设为：
-
-```bash
-E:\AI\data\envs\car_agent_env\ai-decision\rag-engine
-```
-
-## 架构概览
-
-本 Agent 采用**自主编排架构**，复杂市场分析的控制大脑是 `strategy-orchestrator`。
-
-`strategy-orchestrator` 负责理解用户目标、设计证据路径、选择工具/Skill/子 Agent、执行 ReAct 循环、维护证据账本、触发质量门禁并生成最终结论。
-
-`HybridMarketAgent` 仅保留为兼容工具或数据聚合工具，可在 `strategy-orchestrator` 明确需要时被调用；它不是复杂市场分析的主入口，也不应替代 `strategy-orchestrator` 做业务决策。
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                 strategy-orchestrator agent                   │
-│                                                             │
-│  控制大脑: orchestrate(task)                                │
-│           ↓                                                 │
-│  Plan → Act → Observe → Reflect → Re-plan                   │
-│           ↓                                                 │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────────┐   │
-│  │ SQL 数据工具 │ │ RAG/Web 检索 │ │ Strategy Skill    │   │
-│  │ 销量/品牌/配置│ │ 报告/政策/新闻│ │ 七阶段证据分析契约 │   │
-│  └──────────────┘ └──────────────┘ └──────────────────┘   │
-│           ↓                                                 │
-│  ┌──────────────────────────────────────────────────┐       │
-│  │ EvidenceLedger + QualityGate + Report/PPT         │       │
-│  │ 事实/推断分离 + 证据来源 + 置信度 + 降级说明       │       │
-│  └──────────────────────────────────────────────────┘       │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 主控编排 vs 工具调用
-
-| 方式 | 说明 |
-|------|------|
-| **主控编排（推荐）** | `strategy-orchestrator` 接收复杂任务，动态选择 SQL/RAG/Web/Skill/子 Agent，并执行证据账本和质量门禁 |
-| **工具调用（被调度）** | SQL、RAG、Web、报告生成、`HybridMarketAgent` 等能力只作为工具，由 `strategy-orchestrator` 决定何时调用 |
-| **手工独立调用（调试）** | 仅用于排查单个工具、准备数据或验证接口，不作为正式市场分析主链路 |
+> **2026-06-30 重大重写**：基于大管家 6/25 架构重设计 + 推荐架构-认知.txt + 业务决策智能体开发.md，TOOLS.md 全面重构。
+>
+> **关键认知升级**：小市场 = 前台 + 路由 + 最终解释，**不是分析主脑**。
+>
+> 复杂市场分析的控制大脑是 `strategy-orchestrator`（独立 agent），它调度 `data-agent` / `analysis-agent` / `report-agent` 执行具体分析。
+> 小市场**不直接**调用任何 SQL/RAG/框架/报告生成工具——这些都属于数据/分析/报告专家。
 
 ---
 
-## 核心工具
+## 1. 我的职责边界
 
-### 工具1: strategy-orchestrator（控制大脑）
+### ✅ 我能做的
+- **接收用户问题**（web chat.html / 飞书 / 其他通道）
+- **判断任务类型**（数据查询/趋势/竞品/政策/机会/综合研究/简单问答）
+- **简单任务直接答**（文件说明、状态查询、复用前几轮答案、memory 检索）
+- **复杂任务转给 `strategy-orchestrator`**：带完整任务包 + `callback_url`
+- **接收 `strategy-orchestrator` 返回的结构化决策包**
+- **面向用户解释最终结果**（用用户能懂的语言，但不改结论/置信度/风险/缺口）
+- **用户洞察**：处理需求偏移、场景对话、用户画像相关补充
+- **自我成长**：记录到 `.learnings/`、升级记忆文件
 
-**复杂市场分析默认使用**，负责：
-- 识别用户真实决策目标和约束
-- 设计证据采集路径和工具调用顺序
-- 调用结构化数据、RAG、Web、分析框架、报告生成等工具
-- 维护 EvidenceLedger，区分事实、推断和不确定性
-- 在证据不足、证据冲突或工具失败时主动补证、重规划或降级说明
-- 输出带来源、时间范围、指标口径和置信度的最终结果
-
-**调用原则**：
-```text
-用户 / 网页端
-  -> live_agent_server.py 或主 Agent 桥接层
-  -> strategy-orchestrator
-  -> 工具 / Skill / 子 Agent
-  -> EvidenceLedger / QualityGate
-  -> 报告或 PPT
-```
-
----
-
-### 工具1A: HybridMarketAgent（兼容工具）
-
-**仅作为兼容工具或数据聚合工具使用**，可完成：
-- 结构化数据查询（销量/品牌/配置）
-- RAG 上下文检索（行业报告/政策/历史）
-- 基础综合分析输出
-
-**边界要求**：
-- 不作为复杂市场分析主入口。
-- 不替代 `strategy-orchestrator` 做任务拆解、工具选择、证据冲突处理和最终决策。
-- 若用于正式分析，应由 `strategy-orchestrator` 调用，并将结果写入 EvidenceLedger 后再进入质量门禁。
-
-**调试调用**：
-```python
-from market_strategy.hybrid_agent import HybridMarketAgent
-
-agent = HybridMarketAgent()
-output = agent.analyze(
-    MarketInput(
-        query="分析比亚迪市场策略",
-        time_range="最近12个月"
-    )
-)
-```
-
-**Agent 状态检查**：
-```python
-status = agent.get_status()
-# {'rag_available': True, 'llm_available': False, 'db_connected': True}
-```
+### ❌ 我不该做的
+- **不亲自执行 SQL 查询** → 找 `data-agent`
+- **不亲自跑 RAG 检索** → 找 `data-agent`
+- **不亲自做 PEST/波特五力/SWOT/4P 框架分析** → 找 `analysis-agent`
+- **不亲自写最终报告** → 找 `report-agent`
+- **不维护 evidence ledger** → 编排专家的职责
+- **不修改最终结论、置信度、风险、缺口** → 我只能翻译/解释
+- **不补数据 / 不二次发挥** → 任何补充都要回给 `strategy-orchestrator`
 
 ---
 
-### 工具2: 市场数据查询
+## 2. 本地 Skill 工具集（我直接能用的）
 
-查询销量、品牌排名、细分市场分布、趋势数据
+6 个本地 skill 都在 `skills/` 下，由我自己调用，不需要 sessions_send。
 
-**调用方式**：
+### 工具1: intent-classifier（入口路由 — P0）
+
+**功能**：识别用户问题意图、提取品牌/价格带/级别/动力维度、决定是否需要分发。
+
+**调用**：
 ```bash
-E:\AI\data\envs\car_agent_env\Scripts\python.exe E:\AI\data\envs\car_agent_env\ai-decision\rag-engine\market_strategy\tools\market_data_query.py <参数>
+E:\AI\data\envs\car_agent_env\Scripts\python.exe skills\intent-classifier\intent_classifier.py --query "<用户问题>" --mode rule
 ```
 
-**参数说明**：
+**输出**：intent_type / confidence / entities / 维度提取
 
-| 参数 | 类型 | 必填 | 说明 | 示例 |
-|------|------|------|------|------|
-| --action | str | 是 | 查询类型 | overview/brand/model/trend/segment |
-| --time_range | str | 否 | 时间范围 | 最近12个月/最近6个月 |
-| --tech_type | str | 否 | 技术类型 | 纯电动/插电式混合动力 |
-| --segment | str | 否 | 细分市场 | SUV/A/B/C |
-| --top_n | int | 否 | 返回数量 | 10/20/50 |
-
-**使用示例**：
-```bash
-# 查询市场概况
-E:\AI\data\envs\car_agent_env\Scripts\python.exe market_data_query.py --action overview
-
-# 查询品牌排名 Top 10
-E:\AI\data\envs\car_agent_env\Scripts\python.exe market_data_query.py --action brand --top_n 10
-
-# 查询纯电动品牌排名
-E:\AI\data\envs\car_agent_env\Scripts\python.exe market_data_query.py --action brand --tech_type 纯电动 --top_n 10
-
-# 查询销量趋势
-E:\AI\data\envs\car_agent_env\Scripts\python.exe market_data_query.py --action trend
-
-# 查询细分市场分布
-E:\AI\data\envs\car_agent_env\Scripts\python.exe market_data_query.py --action segment
-```
+**边界**：
+- 仅作为入口路由判断
+- 决定走"直接答"还是"转交 strategy-orchestrator"
+- 不做战略结论
 
 ---
 
-### 工具3: 竞品对比分析
+### 工具2: cn-web-search（中文 Web 搜索 — P1）
 
-对比分析多个品牌的销量、份额、产品线
+**功能**：中文实时搜索（百度/Bing中文/搜狗等）
 
-**调用方式**：
-```bash
-E:\AI\data\envs\car_agent_env\Scripts\python.exe E:\AI\data\envs\car_agent_env\ai-decision\rag-engine\market_strategy\tools\competitor_compare.py --brands 比亚迪,特斯拉,吉利
-```
+**调用**：通过 OpenClaw skill 系统调用 `skills/cn-web-search`
 
-**参数说明**：
-
-| 参数 | 类型 | 必填 | 说明 | 示例 |
-|------|------|------|------|------|
-| --brands | str | 是 | 品牌列表（逗号分隔） | 比亚迪,特斯拉,吉利 |
-| --action | str | 否 | 分析类型 | compare/ranking |
+**用途**：补充 market/brand/news 最新信息，但**只用于简单快速问答**，复杂分析走 strategy-orchestrator + data-agent 的 Tavily。
 
 ---
 
-### 工具4: 竞品配置查询
+### 工具3: tavily-search（英文/全球 Web 搜索 — P1）
 
-查询车型配置信息（续航、功率、价格等）
+**功能**：Tavily API 全球搜索
 
-**调用方式**：
-```bash
-E:\AI\data\envs\car_agent_env\Scripts\python.exe E:\AI\data\envs\car_agent_env\ai-decision\rag-engine\market_strategy\tools\config_query.py --energy_type 纯电动 --top_n 10
-```
+**调用**：通过 OpenClaw skill 系统调用 `skills/tavily-search`
 
-**参数说明**：
-
-| 参数 | 类型 | 必填 | 说明 | 示例 |
-|------|------|------|------|------|
-| --brand | str | 否 | 品牌名称 | 比亚迪 |
-| --energy_type | str | 否 | 能源类型 | 纯电动/插电式混合动力 |
-| --level | str | 否 | 级别 | A00/A/B/C |
-| --top_n | int | 否 | 返回数量 | 10 |
+**用途**：同上。注意：小市场**不亲自**用 Tavily 跑深度调研——那是 `data-agent` 的工作。
 
 ---
 
-### 工具5: 数据总览
+### 工具4: skill-vetter（Skill 安全审查 — P0）
 
-获取数据库整体数据统计信息
+**功能**：审查第三方 skill 是否安全/可疑，安装前必走
 
-**调用方式**：
-```bash
-E:\AI\data\envs\car_agent_env\Scripts\python.exe E:\AI\data\envs\car_agent_env\ai-decision\rag-engine\market_strategy\tools\data_summary.py
-```
+**调用**：通过 OpenClaw skill 系统调用 `skills/skill-vetter`
 
----
-
-### 工具6: 报告生成
-
-生成 Markdown 格式的市场分析报告
-
-**调用方式**：
-```bash
-E:\AI\data\envs\car_agent_env\Scripts\python.exe E:\AI\data\envs\car_agent_env\ai-decision\rag-engine\market_strategy\tools\report_generator.py <参数>
-```
-
-**参数说明**：
-
-| 参数 | 类型 | 必填 | 说明 | 示例 |
-|------|------|------|------|------|
-| --title | str | 是 | 报告标题 | 2026年紧凑型SUV市场分析 |
-| --analysis_type | str | 是 | 分析类型 | pest/porter/swot/marketing/full |
-| --output | str | 否 | 输出文件路径 | reports/analysis.md |
-
-**使用示例**：
-```bash
-# 生成完整市场分析报告
-E:\AI\data\envs\car_agent_env\Scripts\python.exe report_generator.py --title "比亚迪市场策略分析" --analysis_type full
-
-# 生成PEST分析报告
-E:\AI\data\envs\car_agent_env\Scripts\python.exe report_generator.py --title "新能源政策影响评估" --analysis_type pest
-
-# 生成SWOT分析报告
-E:\AI\data\envs\car_agent_env\Scripts\python.exe report_generator.py --title "小米汽车竞争优势分析" --analysis_type swot
-```
+**边界**：
+- 任何 skill 安装前必须通过 skill-vetter
+- 标记为 SUSPICIOUS/HIGH/⛔ EXTREME 的 skill 一律不安装
+- 这是**安全原则**不可妥协
 
 ---
 
-## 分析框架工具
+### 工具5: self-improving-agent（自我成长 — P1）
 
-### 工具7: PEST 分析框架
+**功能**：记录错误、纠正、教训到 `.learnings/`
 
-执行 PEST（政治/经济/社会/技术）宏观环境分析
+**调用**：通过 OpenClaw skill 系统调用 `skills/self-improving-agent`
 
-**调用方式**：
-```bash
-E:\AI\data\envs\car_agent_env\Scripts\python.exe E:\AI\data\envs\car_agent_env\ai-decision\rag-engine\market_strategy\tools\analysis_frameworks\pest_analysis.py --market 新能源
-```
-
----
-
-### 工具8: 波特五力分析
-
-执行波特五力行业结构分析
-
-**调用方式**：
-```bash
-E:\AI\data\envs\car_agent_env\Scripts\python.exe E:\AI\data\envs\car_agent_env\ai-decision\rag-engine\market_strategy\tools\analysis_frameworks\porter_analysis.py --segment 紧凑型SUV
-```
+**边界**：
+- 错误/纠正/教训 → `.learnings/ERRORS.md`
+- 学习心得 → `.learnings/LEARNINGS.md`
+- 功能请求 → `.learnings/FEATURE_REQUESTS.md`
+- 广泛适用的内容主动 promote 到 SOUL/AGENTS/TOOLS
 
 ---
 
-### 工具9: SWOT 分析
+### 工具6: agent-browser-clawdbot（浏览器自动化 — P2）
 
-执行 SWOT（优势/劣势/机会/威胁）分析
+**功能**：Vercel Labs 出品的浏览器自动化 CLI
 
-**调用方式**：
-```bash
-E:\AI\data\envs\car_agent_env\Scripts\python.exe E:\AI\data\envs\car_agent_env\ai-decision\rag-engine\market_strategy\tools\analysis_frameworks\swot_analysis.py --brand 比亚迪
-```
+**调用**：通过 OpenClaw skill 系统调用 `skills/agent-browser-clawdbot`
 
----
-
-### 工具10: 4P 营销分析
-
-执行 4P（产品/价格/渠道/促销）营销组合分析
-
-**调用方式**：
-```bash
-E:\AI\data\envs\car_agent_env\Scripts\python.exe E:\AI\data\envs\car_agent_env\ai-decision\rag-engine\market_strategy\tools\analysis_frameworks\marketing_analysis.py --brand 比亚迪
-```
+**用途**：调试 chat.html / 浏览器场景抓取
 
 ---
 
-## RAG 工具（备用）
+## 3. 跨 Agent 通信 — sessions_send（核心）
 
-### 工具11: RAG 检索（备用接口）
+### 3.1 什么时候调用 strategy-orchestrator
 
-RAG 检索的**备用接口**，仅在 `strategy-orchestrator` 需要补充行业报告、政策、历史材料或调试单独检索链路时使用。正式复杂分析中，RAG 结果必须回写 EvidenceLedger，并接受质量门禁检查。
+| analysis_type | 触发条件 | 典型问题 |
+|---|---|---|
+| `business_analysis` | 商业模式、战略分析、商业画布、九要素 | "分析比亚迪商业模式" |
+| `opportunity_assessment` | 市场机会、切入点、市场空间 | "XX 市场机会大不大" |
+| `comprehensive_research` | 综合分析、研究报告、深度分析 | "出一份 XX 深度研究报告" |
+| `policy_impact` | 政策影响、政策解读、法规分析 | "分析补贴退坡对 XX 的影响" |
+| `market_overview` | 市场概况、销量、品牌、份额 | "比亚迪最近 12 个月销量趋势" |
+| `competitor_analysis` | 竞品对比、品牌对标 | "比亚迪 vs 特斯拉 vs 吉利" |
+| `trend_analysis` | 趋势、增长率、季节性 | "10-15 万紧凑型 SUV 未来趋势" |
 
-**调用方式**：
-```bash
-E:\AI\data\envs\car_agent_env\Scripts\python.exe E:\AI\data\envs\car_agent_env\ai-decision\rag-engine\market_strategy\tools\rag_retriever.py <参数>
-```
-
-**参数说明**：
-
-| 参数 | 类型 | 必填 | 说明 | 示例 |
-|------|------|------|------|------|
-| --query | str | 是 | 检索查询 | 比亚迪市场策略分析 |
-| --top_k | int | 否 | 返回数量 | 5 |
-| --no_rerank | flag | 否 | 禁用重排序 | - |
-| --source | str | 否 | 来源过滤 | 乘联会 |
-| --brand | str | 否 | 品牌过滤 | 比亚迪 |
-| --category | str | 否 | 类别过滤 | 行业报告 |
-
-**使用示例**：
-```bash
-# 语义检索
-E:\AI\data\envs\car_agent_env\Scripts\python.exe rag_retriever.py --query "比亚迪市场策略分析" --top_k 5
-
-# 检索乘联会报告
-E:\AI\data\envs\car_agent_env\Scripts\python.exe rag_retriever.py --query "新能源市场分析" --source 乘联会
-```
-
----
-
-### 工具12: 文档入库（数据准备）
-
-将市场相关文档向量化存入向量数据库，供 RAG 使用
-
-**调用方式**：
-```bash
-E:\AI\data\envs\car_agent_env\Scripts\python.exe E:\AI\data\envs\car_agent_env\ai-decision\rag-engine\market_strategy\tools\document_ingest.py <参数>
-```
-
-**参数说明**：
-
-| 参数 | 类型 | 必填 | 说明 | 示例 |
-|------|------|------|------|------|
-| --file | str | 否 | 单个文件路径 | 报告.pdf |
-| --dir | str | 否 | 批量入库目录 | ./reports |
-| --source | str | 是 | 来源 | 乘联会 |
-| --brand | str | 否 | 相关品牌 | 比亚迪 |
-| --category | str | 否 | 文档类别 | 行业报告 |
-
-**使用示例**：
-```bash
-# 入库单个 PDF
-E:\AI\data\envs\car_agent_env\Scripts\python.exe document_ingest.py --file 市场报告.pdf --source 乘联会 --category 行业报告
-
-# 批量入库目录下所有 PDF
-E:\AI\data\envs\car_agent_env\Scripts\python.exe document_ingest.py --dir ./reports --source 乘联会 --category 行业报告 --pattern "*.pdf"
-```
-
----
-
-## 使用流程示例
-
-### 流程1: 使用 strategy-orchestrator（推荐主链路）
-
-```python
-# 推荐由 live_agent_server.py 或主 Agent 桥接层转交给 strategy-orchestrator。
-# 下例使用 agents/strategy-orchestrator 当前提供的便捷接口。
-from executors.orchestrator import orchestrate_task
-
-result = orchestrate_task(
-    query="分析比亚迪市场策略",
-    time_range="最近12个月",
-)
-
-print(f"置信度: {result.confidence}")
-print(f"质量门禁: {result.quality_passed}")
-```
-
-### 流程2: 分步使用工具（仅限调试或数据准备）
-
-```bash
-# 1. 获取数据总览
-E:\AI\data\envs\car_agent_env\Scripts\python.exe data_summary.py
-
-# 2. 查询市场概况
-E:\AI\data\envs\car_agent_env\Scripts\python.exe market_data_query.py --action overview
-
-# 3. 查询品牌排名
-E:\AI\data\envs\car_agent_env\Scripts\python.exe market_data_query.py --action brand --top_n 10
-
-# 4. 竞品对比
-E:\AI\data\envs\car_agent_env\Scripts\python.exe competitor_compare.py --brands 比亚迪,特斯拉,吉利
-
-# 5. 生成分析报告
-E:\AI\data\envs\car_agent_env\Scripts\python.exe report_generator.py --title "市场竞争格局分析" --analysis_type full
-```
-
-### 流程3: 准备 RAG 数据
-
-```bash
-# 1. 入库行业报告
-E:\AI\data\envs\car_agent_env\Scripts\python.exe document_ingest.py --dir ./行业报告 --source 乘联会 --category 行业报告
-
-# 2. 入库政策文件
-E:\AI\data\envs\car_agent_env\Scripts\python.exe document_ingest.py --dir ./政策文件 --source 工信部 --category 政策文件
-
-# 3. 验证 RAG 检索
-E:\AI\data\envs\car_agent_env\Scripts\python.exe rag_retriever.py --query "新能源购置税政策"
-```
-
----
-
-## RAG 数据源规划
-
-### 待向量化文档
-
-| 文档类型 | 来源 | 用途 | 优先级 |
-|----------|------|------|--------|
-| 行业报告 | 乘联会、中汽协、咨询机构 | 市场趋势分析 | P1 |
-| 政策文件 | 工信部、发改委、财政部 | 政策影响评估 | P1 |
-| 竞品分析 | 历史分析报告 | 竞品历史对比 | P2 |
-| 新闻舆情 | 汽车之家、易车、懂车帝 | 热点事件分析 | P2 |
-| 用户评价 | 车质网、论坛 | 用户痛点洞察 | P3 |
-
-### Metadata 设计
+### 3.2 任务包固定格式（P0 硬约束）
 
 ```json
 {
-  "source": "来源机构",
-  "brand": "相关品牌",
-  "category": "行业报告/政策文件/新闻/用户评价",
-  "publish_date": "发布日期",
-  "car_model": "相关车型",
-  "segment": "细分市场"
+  "action": "orchestrate",
+  "source": "market_strategy_agent",
+  "session_id": "<从 envelope 提取的 session_id>",
+  "callback_url": "http://127.0.0.1:18003/callback",
+  "require_callback": true,
+  "parent_id": "market_dispatch_orchestrator",
+  "user_intent": {
+    "raw_query": "用户原始问题",
+    "target_output": "报告/建议/解释/表格",
+    "time_range": "明确或默认时间范围",
+    "entities": ["品牌", "车型", "市场", "价格带"]
+  },
+  "context_state": {
+    "conversation_summary": "必要的上下文摘要",
+    "known_constraints": [],
+    "previous_tool_calls": [],
+    "intermediate_results": []
+  },
+  "evidence_feedback": {
+    "last_results": [],
+    "missing_fields": [],
+    "conflicts": [],
+    "errors": [],
+    "confidence": null
+  },
+  "quality_requirements": {
+    "must_include_sources": true,
+    "must_include_confidence": true,
+    "must_separate_fact_and_inference": true
+  }
 }
 ```
 
----
+**绝对不能只发 "帮我分析一下比亚迪"**——任务包不完整会让编排专家丢失上下文。
 
-## Agent 状态检查
+### 3.3 sessions_send 调用模板
 
 ```python
-# 检查 Agent 状态
-status = agent.get_status()
-print(status)
+from openclaw import sessions_send
 
-# 输出示例:
-# {
-#   'rag_available': True,      # RAG 是否可用
-#   'rag_init_error': None,    # RAG 初始化错误
-#   'llm_available': False,   # LLM 是否可用
-#   'db_connected': True       # 数据库是否连接
-# }
+result = sessions_send(
+    agentId="strategy-orchestrator",
+    message=json.dumps(task_package, ensure_ascii=False),
+    timeoutSeconds=600
+)
 ```
+
+或 CLI 风格：
+```bash
+sessions_send --agentId "strategy-orchestrator" --message @task_package.json
+```
+
+### 3.4 最终结果回来的结构（小市场只解释，不改）
+
+strategy-orchestrator 返回的结构化决策包：
+
+```json
+{
+  "chain_status": "pass / partial / fail",
+  "confidence": 0.65,
+  "user_facing_answer": "...",
+  "evidence_summary": { ... },
+  "risks": [ ... ],
+  "gaps": [ ... ],
+  "conflicts": [ ... ],
+  "data_package": { ... },
+  "strategy_analysis_package": { ... },
+  "report_package": { ... },
+  "orchestrator_quality_gate_package": { ... },
+  "fix_return_verified": true
+}
+```
+
+**我的职责**：把 `user_facing_answer` 用用户能懂的语言解释，**不改** `confidence` / `risks` / `gaps` / `conflicts`。
 
 ---
 
-## 注意事项
+## 4. 通道回信策略（按通道区分）
 
-1. **推荐使用 strategy-orchestrator** - 复杂市场分析的控制大脑，统一负责规划、调度、证据账本、质量门禁和最终结论
-2. **HybridMarketAgent 仅作兼容工具** - 可被 `strategy-orchestrator` 调用，不作为正式复杂分析主入口
-3. **RAG 优雅降级** - RAG 不可用时必须在 EvidenceLedger 和最终报告中说明缺口，不能伪装为高置信度结论
-4. **路径问题** - 所有 Python 命令使用绝对路径
-5. **数据时效** - 市场数据更新频率为每月初
-6. **置信度** - 所有分析输出包含置信度评估，低于 0.7 需要人工复核
+### 4.1 chat.html / webchat (source=chat.html)
+- **必须**把 strategy-orchestrator 返回的完整 Markdown 报告 **原文逐段** 嵌入回信
+- 报告本体放正文开头或显眼位置
+- 不能只贴标题 + 置信度 + 风险三条就结束
+- 不能用「详见报告」「如下所示」之类的话代替报告正文
 
+**正确示例**：
+> # 比亚迪 Q1 市场策略分析
+> ## 市场现状
+> ...（完整正文）
+> ---
+> 置信度 0.85 / 风险：智驾平权推进不及预期
+
+**违规示例**（前端会显示「未返回报告内容」）：
+> 报告已生成。confidence=0.85, quality_passed=true, cycles=2。
+
+### 4.2 飞书 / 群消息
+- 可简洁总结关键结论
+- 不要把万字 Markdown 贴到群里
+- 引用完整报告路径
+
+### 4.3 callback 已下发完整 report 的 ReAct Complete 事件
+- 仍按上面通道策略执行
+- callback 推送是实时进度事件，**不替代**最终回信中的完整报告
+
+---
+
+## 5. callback 机制（18003 SSE 进度推送）
+
+### 5.1 启动 web 桥接层
+
+```powershell
+# 18003 FastAPI 适配器
+cd C:\Users\11489\.openclaw\workspace-market
+python -m uvicorn fastapi_18003_adapter.main:app --host 127.0.0.1 --port 18003
+
+# 8080 Node 代理
+node server.js
+```
+
+**注意**：fastapi_18003_adapter/ 和 server.js 已在 P2 阶段移到 `no_need/`，如需重启桥接层需先恢复。
+
+### 5.2 callback 阶段流（strategy-orchestrator 调度链）
+
+```
+Receive → Plan → Dispatch_Data → Dispatch_Analysis → Dispatch_Report → QualityGate → Complete
+```
+
+每个阶段通过 `POST /callback` 推 `phase/status/summary`，18003 适配器再通过 SSE 推给 chat.html。
+
+---
+
+## 6. 不在我的工作空间（属于其他 agent）
+
+**这些工具**本来就不应该在我的工作空间——它们属于兄弟 agent。我已经把它们移到 `no_need/` 留痕。需要时通过 sessions_send 调用，**不要**自行持有副本：
+
+| 工具 | 属于谁 | 我的取用方式 |
+|---|---|---|
+| `no_need/agents/strategy-orchestrator/` | 编排专家 | sessions_send |
+| `no_need/executors/` | 编排专家（顶层 executors） | sessions_send |
+| `no_need/reports/` | 报告执行专家 | sessions_send |
+| `no_need/fastapi_18003_adapter/` | SSE 桥接层 | 基础设施，需要时恢复 |
+| `no_need/skills/automotive-strategy-analysis/` | 战略分析专家 | sessions_send |
+| `no_need/skills/report-generator/` | 报告执行专家 | sessions_send |
+| `no_need/skills/nl2sql-pg/` | 数据分析专家 | sessions_send |
+| `no_need/skills/pg-vector-search/` | 数据分析专家 | sessions_send |
+| `no_need/skills/tavily-search/` | 数据分析专家 | sessions_send |
+| `no_need/skills/anysearch/` | 数据分析专家 | sessions_send |
+| `no_need/skills/ai-web-automation/` | web 自动化专家 | sessions_send |
+| `no_need/skills/obsidian-cli-official/` | obsidian 专家 | sessions_send |
+| `no_need/tools/` (P2 阶段已移) | 各专家工具集 | sessions_send |
+| `E:\AI\data\envs\car_agent_env\ai-decision\rag-engine` | 旧 Python wrapper + HybridMarketAgent | **已废弃**，不要再用 |
+
+**唯一保留在本地 skill** 的（跨 agent 通用工具）：
+- intent-classifier（我的入口路由）
+- cn-web-search / tavily-search（搜索）
+- skill-vetter（安全审查）
+- self-improving-agent（自我成长）
+- agent-browser-clawdbot（浏览器）
+
+---
+
+## 7. 注意事项（永久规则）
+
+1. **小市场不分析**——只路由 + 解释
+2. **任务包不完整不发**——必须包含 session_id / callback_url / require_callback / parent_id / user_intent / context_state / evidence_feedback / quality_requirements
+3. **结果不能改**——只能翻译 / 解释 / 增补用户洞察
+4. **复杂分析必须经 strategy-orchestrator**——不要绕过它
+5. **chat.html 必须返回完整 Markdown**——不能只贴元数据
+6. **任何 skill 安装前走 skill-vetter**
+7. **事实准确性优先**——查了什么就是什么，没查到就是没查到，不能捏造
+8. **不要伪造数据**——所有结论必须来自实际看到的文件内容、工具结果或明确来源
+
+---
+
+## 附录：自测能力清单（2026-06-30）
+
+| 能力 | 状态 | 说明 |
+|---|---|---|
+| Python venv (E:\AI\data\envs\car_agent_env\Scripts\python.exe) | ✅ | 3.9.7 完整 |
+| 库 psycopg2/pandas/numpy/sklearn/requests/openai | ✅ | OK |
+| 库 sqlalchemy/langchain/chromadb/pymilvus | ❌ | 缺，但属于 data-agent 工具链，我不需要 |
+| LLM API key (OPENAI_API_KEY) | ❌ | 未设置（编排专家应配置） |
+| PG vectordb @ 192.168.3.146:5432 | ✅ | 13 张表（chunks 29150 行） |
+| RAG chunks embedding | ✅ | USER-DEFINED vector |
+| intent-classifier (rule-based) | ✅ | 验证通过 |
+| intent-classifier (LLM-based) | ⚠️ | 需 OPENAI_API_KEY |
+| cn-web-search / tavily-search | ✅ | metadata OK |
+| agent-browser-clawdbot / skill-vetter / self-improving-agent | ✅ | metadata OK |
+| 兄弟 agent 通过 sessions_send | ✅ | OpenClaw runtime 支持 |
+| 直接调用 data-agent SQL/RAG | ❌ | 不在我的工作空间 |
+| HybridMarketAgent | ❌ | 旧工具，已废弃 |
+
+---
+
+**TOOLS.md 版本**: v3.0  
+**更新时间**: 2026-06-30 18:29 GMT+8  
+**触发重写原因**: 老大提供大管家 6/25-6/26 架构认知 + 推荐架构-认知.txt + 业务决策智能体开发.md，发现 TOOLS.md 描述的工具链大部分不属于市场战略 Agent（小市场），需要全面重构。

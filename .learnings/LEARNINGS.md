@@ -482,3 +482,23 @@ DeerFlow 和 LangGraph 不是并列关系，而是嵌套关系（DeerFlow ⊃ La
 - LRN-20260629-001 (SUPERSEDED) - 原始错误判断
 - LRN-20260628-005 - 事实准确性双向监督
 - SOUL.md「事实准确性原则」
+## [LRN-20260630-001] 架构认知升级 — 小市场定位 (correction/best_practice)
+
+**Logged**: 2026-06-30 18:29 GMT+8
+**Priority**: critical
+**Status**: promoted (已写入 TOOLS.md v3.0 / AGENTS.md v3.0 / MEMORY.md)
+
+### Summary
+基于大管家 6/25-6/26 架构重设计文档 + 推荐架构-认知.txt + 业务决策智能体开发.md，认知升级：市场战略 Agent（小市场）= **前台 + 路由 + 最终解释**，**不是分析主脑**。
+
+### Details
+- 之前 TOOLS.md 描述的 13 个 Python 工具脚本（market_data_query/competitor_compare/rag_retriever/PEST/Porter/SWOT/4P/report_generator 等）大部分**不属于**小市场——它们属于 data-agent/analysis-agent/report-agent
+- 复杂市场分析的控制大脑是 strategy-orchestrator（独立 agent），不是小市场
+- 小市场不亲自执行 SQL/RAG/框架分析/报告生成
+- 小市场只做：接收问题 → 判断类型 → 简单任务自答 / 复杂任务转 strategy-orchestrator → 接收结构化决策包 → 面向用户解释（不改结论/置信度/风险/缺口）
+
+### Suggested Action
+- ✅ TOOLS.md v3.0 重写完成（12703 bytes）
+- ✅ AGENTS.md v3.0 追加章节完成（13410 bytes）
+- ✅ MEMORY.md 追加认知升级记录完成（12429 bytes）
+- 后续所有会话启动时按 AGENTS.md §"Session 启动流程" 读 TOOLS.md

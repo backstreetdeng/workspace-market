@@ -210,3 +210,68 @@
 - [ ] 验证 strategy-orchestrator 仍可正常接收复杂任务（确认 agents/strategy-orchestrator/ 删除未破坏运行链）
 - [ ] LRN 条目：smoke test 中发现的规则路径意图识别局限（提交到 .learnings/LEARNINGS.md）
 - [ ] 清理工作区 100+ 脏文件（M/D/??）单独一个 commit，不混入本次
+## 2026-06-30 18:29 认知升级 — TOOLS.md / AGENTS.md 重构
+
+### 老大指令
+"这四份是大管家在帮我重构agent时候保留下来的珍贵记忆...然后基于新的认知，看待你现在的tools.md是否有问题，然后完善相关文件"
+
+### 四份学习材料
+1. `C:\Users\11489\.openclaw\workspace\memory\2026-06-25.md` (大管家 6/25 日志，31220 chars)
+2. `C:\Users\11489\.openclaw\workspace\memory\2026-06-26.md` (大管家 6/26 日志，18131 chars)
+3. `D:\...7.1 智能体开发\1. 理解\推荐架构-认知.txt` (3858 chars)
+4. `D:\...7.1 智能体开发\1. 理解\业务决策智能体开发.md` (11680 chars)
+
+### 关键认知升级
+
+**之前**：TOOLS.md 描述的是"市场战略 Agent 的工具集"，包括 SQL 查询、RAG 检索、PEST/波特五力/SWOT/4P 框架、报告生成等 13 个 Python 工具脚本。
+**现在**：这些工具大部分**不属于**市场战略 Agent（小市场）——它们属于 data-agent / analysis-agent / report-agent。
+
+### 正确架构
+
+```
+Web → 小市场（前台+路由+最终解释）→ strategy-orchestrator（编排）→ data-agent / analysis-agent / report-agent → strategy-orchestrator → 小市场 → 用户
+```
+
+- **小市场 = 前台 + 路由 + 最终解释**（不是分析主脑）
+- **strategy-orchestrator = 项目经验 + 证据账本 + 质量门禁**（独立 agent）
+- **data-agent = 拿数据**（SQL/RAG/vector/web/statistical）
+- **analysis-agent = 框架分析**（PEST/波特五力/SWOT/4P）
+- **report-agent = 格式化输出**（不改事实/置信度/风险）
+
+### 深度限制（P0 硬约束）
+只允许两级深度：小市场 → strategy-orchestrator → 执行专家。执行专家不能再下发到第四层。
+
+### 任务包固定格式
+发给 strategy-orchestrator 时必须包含完整任务包：
+- session_id / callback_url / require_callback / parent_id
+- user_intent (raw_query / target_output / time_range / entities)
+- context_state / evidence_feedback / quality_requirements
+
+### 通道回信策略
+- chat.html: 必须把完整 Markdown 报告原文嵌入回信正文
+- 飞书群: 简洁总结 + 报告路径，不贴万字 Markdown
+- callback 推送是实时进度事件，**不替代**最终回信
+
+### 已完成动作
+1. TOOLS.md v3.0 重写 (12703 bytes)
+   - 删除原 12 个 Python 工具脚本描述
+   - 强调"小市场不分析"原则
+   - 列出 6 个本地 skill + sessions_send 模板 + 任务包格式
+   - 通道回信策略 + callback 机制
+   - 附录：自测能力清单
+2. AGENTS.md 追加 v3.0 章节 (13410 bytes)
+   - 小市场定位声明
+   - 兄弟 agent 协作表
+   - 深度限制规则
+   - workflows/market_analysis.prose / python_wrapper 废弃说明
+
+### 与之前 17:10 P2 清理的一致性
+- no_need/ 留痕的所有兄弟 agent 代码现在有了**架构层依据**：它们本来就不应该在小市场工作空间
+- 之前我担心的"工具链缺失"实际上**不归我管**——属于 data-agent
+- 唯一需要确认的是 OPENAI_API_KEY（编排专家应配置）
+
+### 待办（不紧急）
+- LLM API key 未设置 → 编排专家应配置 OPENAI_API_KEY
+- intent-classifier LLM-based 路径需要 API key 才能跑
+- no_need/fastapi_18003_adapter/ 是否需要恢复（小市场不直接用，但 chat.html 还需要桥接层）
+
