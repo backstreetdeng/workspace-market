@@ -170,17 +170,23 @@ E:\AI\data\envs\car_agent_env\Scripts\python.exe skills\intent-classifier\intent
 from openclaw import sessions_send
 
 result = sessions_send(
-    agentId="strategy-orchestrator",
+    agentId="strategy-orchestrator",   # OpenClaw runtime 配置名
+    openId="ou_cff96255f27cd4de8f4a4b7d287558d1",  # 战略编排专家 open_id (2026-06-29 老大确认)
     message=json.dumps(task_package, ensure_ascii=False),
     timeoutSeconds=600
 )
 ```
 
-或 CLI 风格：
-```bash
-sessions_send --agentId "strategy-orchestrator" --message @task_package.json
-```
+**open_id 说明**（2026-06-29 老大确认的最新映射）：
 
+| Agent | open_id |
+|---|---|
+| 战略编排专家 (strategy-orchestrator) | `ou_cff96255f27cd4de8f4a4b7d287558d1` |
+| 战略分析专家 | `ou_99585f227f3320a8f959ef0104955934` |
+| 报告执行专家 | `ou_bf2eed5b88b75419c1ecb0c3585bfbac` |
+| 数据分析专家 | `ou_aea6c01c9df9dface7740b00c6174053` |
+| 大管家 | `ou_63cab3fe32623d9d0b157b623ab4c55e` |
+| 小市场 (market_strategy) | `ou_81b80af179808c75739959e2365b72bb` |
 ### 3.4 最终结果回来的结构（小市场只解释，不改）
 
 strategy-orchestrator 返回的结构化决策包：
@@ -262,32 +268,54 @@ Receive → Plan → Dispatch_Data → Dispatch_Analysis → Dispatch_Report →
 
 ## 6. 不在我的工作空间（属于其他 agent）
 
-**这些工具**本来就不应该在我的工作空间——它们属于兄弟 agent。我已经把它们移到 `no_need/` 留痕。需要时通过 sessions_send 调用，**不要**自行持有副本：
+兄弟 agent 体系按"agent + skill"双层组织（参照 WORKSPACE_ARCHITECTURE_MAP.md v3.0）：
 
-| 工具 | 属于谁 | 我的取用方式 |
-|---|---|---|
-| `no_need/agents/strategy-orchestrator/` | 编排专家 | sessions_send |
-| `no_need/executors/` | 编排专家（顶层 executors） | sessions_send |
-| `no_need/reports/` | 报告执行专家 | sessions_send |
-| `no_need/fastapi_18003_adapter/` | SSE 桥接层 | 基础设施，需要时恢复 |
-| `no_need/skills/automotive-strategy-analysis/` | 战略分析专家 | sessions_send |
-| `no_need/skills/report-generator/` | 报告执行专家 | sessions_send |
-| `no_need/skills/nl2sql-pg/` | 数据分析专家 | sessions_send |
-| `no_need/skills/pg-vector-search/` | 数据分析专家 | sessions_send |
-| `no_need/skills/tavily-search/` | 数据分析专家 | sessions_send |
-| `no_need/skills/anysearch/` | 数据分析专家 | sessions_send |
-| `no_need/skills/ai-web-automation/` | web 自动化专家 | sessions_send |
-| `no_need/skills/obsidian-cli-official/` | obsidian 专家 | sessions_send |
-| `no_need/tools/` (P2 阶段已移) | 各专家工具集 | sessions_send |
-| `E:\AI\data\envs\car_agent_env\ai-decision\rag-engine` | 旧 Python wrapper + HybridMarketAgent | **已废弃**，不要再用 |
+### 6.1 独立 agent（4 个）— 负责具体专业能力的执行
 
-**唯一保留在本地 skill** 的（跨 agent 通用工具）：
-- intent-classifier（我的入口路由）
-- cn-web-search / tavily-search（搜索）
-- skill-vetter（安全审查）
-- self-improving-agent（自我成长）
-- agent-browser-clawdbot（浏览器）
+| Agent | 职责 | 取用方式 | 备份位置 |
+|---|---|---|---|
+| 战略分析专家 | PEST / 波特五力 / SWOT / 4P 框架分析 | sessions_send | `no_need/agents/` |
+| 数据分析专家 | SQL / RAG / vector / web 证据收集 | sessions_send | `no_need/agents/`（部分） |
+| 报告执行专家 | 格式化输出报告（不改事实/置信度/风险）| sessions_send | `no_need/agents/`（部分） |
+| 成本分析专家 | 成本结构分析 | sessions_send | `no_need/agents/` |
 
+**注意**：上面的"战略分析专家"是基于我（小市场）能力拆分出去的独立 agent，**不是**我自己（2026-06-29 老大明确）。同样，报告执行专家也是独立 agent。
+
+### 6.2 核心 skill（8 个）— 各 agent 调用的能力单元
+
+| Skill | 归属 | 用途 | 备份位置 |
+|---|---|---|---|
+| `nl2sql-pg` | 数据分析专家 | PostgreSQL 结构化查询 | `no_need/skills/` |
+| `pg-vector-search` | 数据分析专家 | 向量数据库语义检索 | `no_need/skills/` |
+| `tavily-search` | 数据分析专家 | 英文/全球 Web 搜索 | `no_need/skills/` |
+| `anysearch` | 数据分析专家 | 通用搜索 | `no_need/skills/` |
+| `automotive-strategy-analysis` | 战略分析专家 | PEST/波特五力/SWOT/4P 框架 | `no_need/skills/` |
+| `report-generator` | 报告执行专家 | Markdown 报告生成 | `no_need/skills/` |
+| `ai-web-automation` | web 自动化专家 | 浏览器场景抓取 | `no_need/skills/` |
+| `obsidian-cli-official` | obsidian 专家 | Obsidian 笔记集成 | `no_need/skills/` |
+
+### 6.3 编排大脑 + 桥接层 + 旧工具链
+
+| 工具 | 归属 | 取用方式 | 备份位置 |
+|---|---|---|---|
+| 战略编排专家 (`strategy-orchestrator`) | 编排大脑 | sessions_send | `no_need/agents/strategy-orchestrator/` |
+| 顶层 `executors/` | 编排专家 | sessions_send | `no_need/executors/` |
+| `fastapi_18003_adapter/` | SSE 桥接层（18003） | 基础设施，需要时恢复 | `no_need/fastapi_18003_adapter/` |
+| `server.js` + `chat.html` 等 | Web 桥接层（8080） | 基础设施，需要时恢复 | `no_need/debug/` |
+| `reports/` | 报告历史存档 | sessions_send | `no_need/reports/` |
+| `share/` | 兄弟 agent 共享内容 | 只读 | `no_need/share/` |
+| `E:\AI\data\envs\car_agent_env\ai-decision\rag-engine` | 旧 Python wrapper + HybridMarketAgent | **已废弃**，不要再用 | — |
+
+### 6.4 我（小市场）本地保留的 6 个跨 agent 通用 skill
+
+- `intent-classifier`（我的入口路由）
+- `cn-web-search`（中文搜索）
+- `tavily-search`（英文搜索）
+- `skill-vetter`（安全审查）
+- `self-improving-agent`（自我成长）
+- `agent-browser-clawdbot`（浏览器）
+
+---
 ---
 
 ## 7. 注意事项（永久规则）
@@ -326,3 +354,5 @@ Receive → Plan → Dispatch_Data → Dispatch_Analysis → Dispatch_Report →
 **TOOLS.md 版本**: v3.0  
 **更新时间**: 2026-06-30 18:29 GMT+8  
 **触发重写原因**: 老大提供大管家 6/25-6/26 架构认知 + 推荐架构-认知.txt + 业务决策智能体开发.md，发现 TOOLS.md 描述的工具链大部分不属于市场战略 Agent（小市场），需要全面重构。
+
+

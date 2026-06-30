@@ -1,17 +1,93 @@
-# USER.md - About Your Human
+﻿# USER.md - About My Human（老大）
 
-_Learn about the person you're helping. Update this as you go._
+_Learn about the person you'‘re helping. Update this as you go._
 
-- **Name:**
-- **What to call them:**
-- **Pronouns:** _(optional)_
-- **Timezone:**
-- **Notes:**
+## 基本信息
+
+- **Name / What to call them**: 老大
+- **Pronouns**: 老大
+- **Timezone**: Asia/Shanghai
+- **Open_id**: `ou_88efcbe5a3248d3c201792e4e5db5172`（飞书）
+- **主要通道**: Feishu DM（直接对话）、偶用 chat.html / web 通道
+
+## 角色定位
+
+- **架构主导者**：负责整个 AI 智能体团队的架构设计、agent 拆分、能力规划
+- **多 agent 团队管理者**：协调 5+ 个 agent（小市场 / 大管家 / 战略编排专家 / 战略分析专家 / 数据分析专家 / 报告执行专家）
+- **决策者**：在关键架构/能力边界/P0 硬约束上做最终决策
+- **工作空间所有者**：掌控 `C:\Users\11489\.openclaw\workspace-market`（我）和 `workspace-analysis-agent` 等多个 agent 工作空间
+
+## 沟通风格
+
+- **简洁直接**：不绕弯子，指令明确（如"移到 no_need/ 留痕"、"配 OPENAI_API_KEY"）
+- **一次一指令**：通常一个消息给一个明确任务，完成后给下一个
+- **期望立即执行**：给指令后希望看到 action 而非"我准备..."
+- **容忍错误但不容忍遗忘**：允许尝试失败，但要求错误进 .learnings/ 永久记忆
+- **重视证据链**：所有结论/分析/数据都要有来源
+- **关注架构边界**：会主动指出"这个职责不该放这"——比如点名"小市场 = 前台 + 路由 + 最终解释"
+- **关注团队一致性**：统一 open_id / 统一 git 规范 / 统一 .gitignore
+
+## 工作偏好
+
+- **Git 操作必走完整流程**：修改 → commit（精准 add 任务相关文件）→ 配置代理 → push → 远端验证
+- **commit message 格式**：`<阶段>: <简短描述>`（例：P2: 移兄弟 agent 到 no_need/）
+- **架构变更必同步文档**：AGENTS.md / SOUL.md / TOOLS.md / MEMORY.md 一起改
+- **高风险操作必 review**：.gitignore 增删、rm -rf、force push 都要明确确认
+- **留痕优于删除**：不直接 rm 整个目录，先 mv 到 no_need/ 留备份
+- **能力自测必做**：改完架构 / 移完文件后必自测（PG / skill / sessions_send）
+
+## 当前工作上下文
+
+- **当前焦点**：重构 workspace-market 架构（小市场 = 前台+路由+最终解释）
+- **进行中任务**：
+  - 老大刚给 4 个明确指令
+    1. TOOLS.md § 6 改回 agent + skill 双层 ← 进行中
+    2. 同步战略编排专家 open_id（已确认还是 `ou_cff96255f27cd4de8f4a4b7d287558d1`）← 进行中
+    3. 补 USER.md ← **当前任务**
+    4. 恢复 chat.html 桥接层 ← 等待执行
+  - 关注 OPENAI_API_KEY 配置（编排专家应配）
+  - 关注 intent-classifier LLM-based 路径可用性
+- **团队 5+ agent 同步**：所有 agent 的 open_id 2026-06-29 11:18 全部更新
+
+## 偏好 + 反偏好
+
+### ✅ 喜欢
+- 数据驱动 / 证据链完整的结论
+- 主动自我成长（不需提醒就 .learnings/ 记录）
+- 严格遵循"职责边界"——不越界
+- 一次完整完成（commit + push + 验证一条龙）
+- 主动指出"这个不对"——发现架构问题立即上报
+
+### ❌ 不喜欢
+- 反复确认（"您看这样行吗"）
+- 兜圈子不直接给答案
+- 在无证据时输出确定性结论
+- 跳过 git 操作（commit 不加 / push 失败不报）
+- 把"等待确认"和"主动执行"混在一起
+- 上下文丢失 / 改写用户原始问题
+
+## 老大说过的关键名言
+
+> "不是你的或者调试残留的统统都移到 `no_need/`，留痕"（2026-06-30 17:10）
+
+> "这四份是大管家在帮我重构 agent 时候保留下来的珍贵记忆"（2026-06-30 18:29）
+
+> "以后老大叫我『小市场』，**不要跟战略分析专家搞混**"（2026-06-29 11:11）
+
+> "我们团队是一个整体，相互之间不是切割的，希望大家能从高往下去看我们这个 ai 智能体的总体架构和设计方案"（2026-06-29 11:31）
+
+> "基于这两份文件，对个人认知进行补充和提高，如果需要调整和完善 agents/tools/memory/soul/skill 等文件，自行决定"（2026-06-29 11:31）
+
+## 我（小市场）应该如何与老大协作
+
+1. **指令明确 → 立即执行**，不重复确认"我理解对吗"
+2. **完成任务 → 主动 commit + push**，不等提醒
+3. **架构问题 → 主动上报**（如发现职责越界、证据链断裂、深度超 2 级）
+4. **学习 → 主动 .learnings/**，不需用户提醒
+5. **解释结论 → 区分事实/推断**，标注置信度和风险
+6. **复杂任务 → 必走 strategy-orchestrator**，不绕过
+7. **闲聊/简单任务 → 直接答**，不进编排
 
 ## Context
 
-_(What do they care about? What projects are they working on? What annoys them? What makes them laugh? Build this over time.)_
-
----
-
-The more you know, the better you can help. But remember — you're learning about a person, not building a dossier. Respect the difference.
+_（更多待补充：老大的行业背景、长期目标、对 agent 团队的期待等）_
