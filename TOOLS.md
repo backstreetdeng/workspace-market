@@ -338,11 +338,11 @@ Receive → Plan → Dispatch_Data → Dispatch_Analysis → Dispatch_Report →
 | Python venv (E:\AI\data\envs\car_agent_env\Scripts\python.exe) | ✅ | 3.9.7 完整 |
 | 库 psycopg2/pandas/numpy/sklearn/requests/openai | ✅ | OK |
 | 库 sqlalchemy/langchain/chromadb/pymilvus | ❌ | 缺，但属于 data-agent 工具链，我不需要 |
-| LLM API key (OPENAI_API_KEY) | ❌ | 未设置（编排专家应配置） |
+| LLM API key (MINIMAX_API_KEY) | ✅ | 已切到 MiniMax endpoint（80938e3 已修），不再依赖 OPENAI_API_KEY |
 | PG vectordb @ 192.168.3.146:5432 | ✅ | 13 张表（chunks 29150 行） |
 | RAG chunks embedding | ✅ | USER-DEFINED vector |
 | intent-classifier (rule-based) | ✅ | 验证通过 |
-| intent-classifier (LLM-based) | ⚠️ | 需 OPENAI_API_KEY |
+| intent-classifier (LLM-based) | ✅ | 走 MINIMAX_API_KEY（默认），fallback 才用 OPENAI_API_KEY（仅当 MINIMAX key 缺失） |
 | cn-web-search / tavily-search | ✅ | metadata OK |
 | agent-browser-clawdbot / skill-vetter / self-improving-agent | ✅ | metadata OK |
 | 兄弟 agent 通过 sessions_send | ✅ | OpenClaw runtime 支持 |
