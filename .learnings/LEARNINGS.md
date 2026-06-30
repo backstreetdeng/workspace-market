@@ -502,3 +502,26 @@ DeerFlow 和 LangGraph 不是并列关系，而是嵌套关系（DeerFlow ⊃ La
 - ✅ AGENTS.md v3.0 追加章节完成（13410 bytes）
 - ✅ MEMORY.md 追加认知升级记录完成（12429 bytes）
 - 后续所有会话启动时按 AGENTS.md §"Session 启动流程" 读 TOOLS.md
+
+## [LRN-20260630-013] category: best_practice
+**Logged**: 2026-06-30T20:30+08:00
+**Priority**: medium
+**Status**: pending
+
+### Summary
+PowerShell + Windows 默认 GBK 环境下做多文件 / 多行代码精确替换，不要用 here-string 或 Add-Content，直接写 Python 脚本到 temp/ 执行最稳。
+
+### Details
+- `@'...'@` here-string 在嵌套引号 / 转义上很脆弱，本轮 AST 命令报 GBK 解码错
+- Windows console 默认编码是 GBK，跑涉及中文的脚本要 `python -X utf8` 或显式 `encoding='utf-8'`
+- PowerShell `Get-Content` + `$_.ReadCount` 算出来的"行号"是迭代计数器，**不是**文件行号。要用 `$lines = Get-Content f; for (\$i=0; \$i -lt \$lines.Length; \$i++) { ... \$lines[\$i] }` 拿真实行号
+- 文件里看到的 `?` 实际可能是 `❌` (U+274C) 等 emoji — terminal font 渲染问题，调试时用 Python `repr()` / `hex dump` 验证实际字符
+- PowerShell `Add-Content -Encoding UTF8` 默认写 CRLF，会让原本 LF 的 git 文件产生大量 diff；保持行尾一致用 Python `open(..., 'a', encoding='utf-8', newline='')`
+
+### Suggested Action
+- 多步修复 / 多文件替换：写一个 Python 脚本到 `temp/patch_*.py`，一次性执行
+- AST / parse 涉及中文 / UTF-8 文件：统一加 `-X utf8` 参数
+- 行号校对：用 `$lines[idx]` 模式，不要靠 `$_ReadCount`
+- 追加 .learnings/ 等可能跨平台读的文件：用 Python `open(..., 'a', encoding='utf-8', newline='')` 保持 LF 行尾
+
+---
