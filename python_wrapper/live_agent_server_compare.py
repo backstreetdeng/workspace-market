@@ -264,12 +264,26 @@ def _installed_skill_inventory() -> List[Dict[str, str]]:
 
 def _call_openai_compatible_chat(messages: Sequence[Dict[str, str]], *, max_tokens: int = 700) -> Dict[str, Any]:
     """Small OpenAI-compatible chat client used only when explicitly configured."""
-    api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("MARKET_LLM_API_KEY")
+    api_key = (
+        os.environ.get("MINIMAX_API_KEY")
+        or os.environ.get("MARKET_LLM_API_KEY")
+        or os.environ.get("OPENAI_API_KEY")
+    )
     if not api_key:
-        return {"ok": False, "error": "missing OPENAI_API_KEY or MARKET_LLM_API_KEY"}
+        return {"ok": False, "error": "missing MINIMAX_API_KEY / MARKET_LLM_API_KEY / OPENAI_API_KEY"}
 
-    base_url = (os.environ.get("OPENAI_BASE_URL") or os.environ.get("MARKET_LLM_BASE_URL") or "https://api.openai.com/v1").rstrip("/")
-    model = os.environ.get("MARKET_LLM_MODEL") or os.environ.get("OPENAI_MODEL") or "gpt-4o-mini"
+    base_url = (
+        os.environ.get("MINIMAX_BASE_URL")
+        or os.environ.get("MARKET_LLM_BASE_URL")
+        or os.environ.get("OPENAI_BASE_URL")
+        or "https://api.minimax.chat/v1"
+    ).rstrip("/")
+    model = (
+        os.environ.get("MARKET_LLM_MODEL")
+        or os.environ.get("MINIMAX_MODEL")
+        or os.environ.get("OPENAI_MODEL")
+        or "MiniMax-Text-01"
+    )
     payload = {
         "model": model,
         "messages": list(messages),
