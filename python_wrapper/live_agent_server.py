@@ -276,13 +276,13 @@ def _call_openai_compatible_chat(messages: Sequence[Dict[str, str]], *, max_toke
         os.environ.get("MINIMAX_BASE_URL")
         or os.environ.get("MARKET_LLM_BASE_URL")
         or os.environ.get("OPENAI_BASE_URL")
-        or "https://api.minimax.chat/v1"
+        or "https://api.minimaxi.com/v1"
     ).rstrip("/")
     model = (
         os.environ.get("MARKET_LLM_MODEL")
         or os.environ.get("MINIMAX_MODEL")
         or os.environ.get("OPENAI_MODEL")
-        or "MiniMax-Text-01"
+        or "MiniMax-M3-highspeed"
     )
     payload = {
         "model": model,
