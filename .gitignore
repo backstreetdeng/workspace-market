@@ -1,4 +1,4 @@
-﻿byd_query.py
+byd_query.py
 debug_stages.py
 q.py
 __pycache__/
@@ -8,3 +8,17 @@ bak_html/
 *.bak
 *.ps1
 no_need/
+
+# === 2026-07-01 23:57 老大明确追加 (按 LR RN-006 反思): 不该 commit 的运行时/备份文件 ===
+# 旧 SOUL.md 备份 (GBK 编码, 内容已包含在 SOUL.md)
+SOUL-deng-backup.md
+# 大管家 / 各 agent 临时备份 (session_manager.py.mybak 等)
+*.mybak
+# 18003 adapter 运行时日志 + A3/B4 E2E 产出
+logs/*.jsonl
+logs/*.txt
+logs/test_*.py
+# 历史脏文件 (Q 系列调试脚本)
+q.py
+byd_query.py
+debug_stages.py
