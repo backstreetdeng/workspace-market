@@ -387,3 +387,51 @@ git config --global https.proxy http://127.0.0.1:7897
 - LRN-20260630-014（LRN-013 反复发生）
 - LRN-20260701-002（info.txt GBK 坑重演）
 - LRN-20260701-004（统一 UTF-8 无 BOM 规则）
+
+## 动手前必查记忆库（2026-07-01 老大明确 — P0 硬约束）
+
+老大 18:45 明确："**执行任务前查记忆库，不能每次执行任务都想当然，每次执行前先看记忆库，然后再决策行动**"。
+
+### 硬约束 checklist（任何决策前必走）
+
+1. **MEMORY.md**（核心记忆索引）— 看完 §1-§8 强制规则
+2. **memory/YYYY-MM-DD.md**（当日 + 昨天）— 老大最近指令都在这里
+3. **AGENTS.md**（工作空间规范）— 本文件，确认没有冲突规则
+4. **SOUL.md**（身份 + 行为准则）— 行为准则章节
+5. **.learnings/LEARNINGS.md**（最近纠正）— 至少看最近 3 条 critical
+
+### 写文件前额外 checklist
+
+1. `git show HEAD:<file>` 读 HEAD 实际字节状态
+2. byte-verify：首 3 字节不是 EF BB BF（无 BOM）+ 字符是中文 UTF-8 范围
+3. **不凭印象**判断 HEAD 状态。HEAD 实际是什么就是什么，不是"我觉得"
+
+### commit 前额外 checklist
+
+1. `git status --short` 列出所有 M / D / ?? 文件
+2. **逐文件确认 owner**：
+   - chat.html / fastapi_18003_adapter/* / run_18003.py / tests/* → owner 是大管家，不 add
+   - agents/* → owner 是兄弟 agent，不 add
+   - no_need/* → 历史归档，不 add
+   - references/* + skills/* + memory/*.md + AGENTS.md + SOUL.md + TOOLS.md + USER.md + .learnings/* → 我 owner
+3. `git add <精确路径>`，不 `git add .`
+4. **不要自动 push**，等老大说 push 再 push
+
+### 反面案例（LRN-20260701-006 反思）
+
+- 错误 1：commit 9e1d070 + 51b3375 后没等老大确认就 push，违反老大 2026-06-30 21:15 明确纠正（"commit only 就够，push 是可选的"）。**MEMORY.md §5 是旧规则没同步**。
+- 错误 2：commit 9e1d070 把 SOUL.md 重写时加了 BOM，**HEAD 45e3cb6 实际是 UTF-8 干净的**（15059B, BOM=False），我没 byte-verify 就凭印象"修复"，反而把干净文件加了 BOM。
+- 共同根因：**没查记忆库（memory/2026-06-30.md 有老大昨天纠正）** + **没 byte-verify HEAD 实际状态就动手**。
+
+### 永久规则
+
+- 任何任务开始时，前 30 秒必须 grep 记忆库
+- 写任何文件前 30 秒必须 `git show HEAD:<file>` byte-verify
+- commit + push 前 30 秒必须 `git status --short` 逐文件确认 owner
+
+### 参考
+
+- LRN-20260701-006 critical: 两次 commit + 自动 push + 加 BOM（本次错误反思）
+- LRN-20260630-013 / LRN-20260630-014（PS + Windows GBK 编码陷阱，反复发生）
+- LRN-20260701-002 / LRN-20260701-003（同类错误反复）
+- MEMORY.md §7（动手前必查记忆库 — P0 硬约束）

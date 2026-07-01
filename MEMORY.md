@@ -122,19 +122,40 @@
    - 共享文件 → share/
    - 个人文件 → workspace-market/memory/
    - 临时调试脚本（py/sh等）→ temp/
-### 5. Git 提交与推送规范（2026-06-23）
-   - 每次完成代码、测试、规范或记忆文件调整后，必须及时 `git commit`。
-   - commit 前只纳入本次任务相关文件，避免混入无关脏文件。
+### 5. Git 提交与推送规范（2026-07-01 老大明确纠正 — 覆盖 2026-06-23 旧规则）
+   - 每次完成代码、测试、规范或记忆文件调整后，必须及时 `git commit` 到**本地仓库**。
+   - commit 前只纳入本次任务相关文件，避免混入无关脏文件（特别是 chat.html / fastapi_18003_adapter/ / run_18003.py / tests/ 等 owner 是大管家的文件，不要 add）。
+   - **commit 后不要立即 push**。push 是可选的，等老大明确确认后才能 push。
    - push 前必须先执行：
      - `git config --global http.proxy http://127.0.0.1:7897`
      - `git config --global https.proxy http://127.0.0.1:7897`
-   - commit 后必须 `git push`；若 push 失败，要告知 commit hash 和失败原因，并记录可恢复信息。
-### 6. 新开发完成后标准流程（2026-06-23 补充）
-   - 完成新功能开发后，立即执行 git commit + push，不等用户提醒。
+   - 老大昨天（2026-06-30 21:15）明确："**commit only 就够**。push 是可选的"——本地 commit 已足够留痕，不会丢失文件。
+   - 完整流程：commit (本地留痕) → 等老大确认 → 配置代理 → push → 失败处理。
+### 6. 新开发完成后标准流程（2026-07-01 老大明确纠正）
+   - 完成新功能开发后，立即 `git commit` 到**本地仓库**，**不立即 push**，等老大确认。
    - 提交范围只限本轮相关文件，用 git add <path> 精确指定，不 git add .。
-   - commit message 格式：<阶段>: <简短描述>（例：P3: add four-factor confidence model）
-   - commit 后立即 push；若 push 失败，记录本地 commit hash 到 memory/当日.md，并告知用户。
+   - commit message 格式：<阶段>: <简短描述>（例：P0: SOUL.md + AGENTS.md 加硬约束）
+   - commit 后**不要自动 push**。等老大说"push"或"提交"再 push。
    - 同时将新开发内容摘要追加到 memory/YYYY-MM-DD.md，格式：### HH:MM 新开发存档
+
+### 7. 动手前必查记忆库（2026-07-01 老大明确 — P0 硬约束）
+   - **任何决策、写文件、动 working tree、commit、add、push 前**，必须先查记忆库：
+     - MEMORY.md（核心记忆索引）
+     - memory/YYYY-MM-DD.md（当日日志 + 至少看昨天）
+     - AGENTS.md（工作空间规范）
+     - SOUL.md（身份 + 行为准则）
+     - .learnings/LEARNINGS.md（最近纠正）
+   - 写文件前必须 byte-verify HEAD 实际状态（`git show HEAD:<file> | first 12 bytes`），**不凭印象**
+   - 任何 read/write/modify 前自问："HEAD 当前是什么状态？我有没有证据？"
+   - 老大原话："**每次执行前先看记忆库，然后再决策行动，不能每次执行任务都想当然**"
+   - 这条是 LRN-20260701-006 的根因：以前接受学习但不内化，现在强制 promote 到 MEMORY.md
+### 8. 文件 owner 分工（2026-07-01 老大明确）
+   - chat.html + fastapi_18003_adapter/* + run_18003.py + tests/* → **owner 是大管家**，B1-B4 改动归他
+   - agents/* → owner 是各兄弟 agent（小市场不动）
+   - no_need/* → 历史归档，不动
+   - references/* + skills/* + memory/*.md → 我（小市场）owner
+   - 任何时候我（小市场）不要 git add 不属于我的 owner 文件
+   - 等大管家完成 B1-B4 后，18003 桥接层配置会更新，我再接上 chat_ingress.jsonl 路径
 
 
 ## 目录结构

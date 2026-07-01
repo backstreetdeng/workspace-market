@@ -18,12 +18,13 @@ import time
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from pydantic import ValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from .gateway_client import MARKET_AGENT_ID, post_chat_completion
-from .models import CallbackPayload, ChatRequest
+from .models import DEPRECATED_ANALYSIS_TYPES, CallbackPayload, ChatRequest
 from .session_manager import session_manager
 
 
@@ -59,6 +60,37 @@ CALLBACK_HELPER_PATH = Path(__file__).with_name("callback_client.py")
 HEARTBEAT_SECONDS = 15
 TREE_EVENT_KINDS = {"task_progress", "substep_created", "substep_updated"}
 TERMINAL_TIMEOUT_HINTS = ("timed out", "timeout", "operation was aborted", "aborted")
+# B2 (2026-07-01 老大确认): chat_ingress.jsonl 落盘日志
+# 位置: <workspace-market>/logs/chat_ingress.jsonl (绝对路径, 不依赖 cwd)
+# 写入点: /chat 端点 (gate-in), 必落; 后续 agent_decision 由 callback 路径补齐
+_CHAT_INGRESS_LOG = Path(__file__).resolve().parent.parent / "logs" / "chat_ingress.jsonl"
+_CHAT_INGRESS_LOG.parent.mkdir(parents=True, exist_ok=True)
+
+
+def _log_chat_ingress(req: ChatRequest, *, agent_decision: str = "pending", deprecated: bool = False) -> None:
+    """Append a JSONL line to logs/chat_ingress.jsonl.
+
+    不靠 agent 自觉, adapter 强制落盘. 字段:
+      ts (ISO8601) / session_id / question (前 200 字) / analysis_type / agent_decision / deprecated
+    agent_decision 可取值:
+      pending               - /chat 已接, 还未确认
+      forwarded_to_orchestrator - 小市场已 sessions_send 给 strategy-orchestrator
+      self_answered         - 小市场自答, 未走编排专家 (警告)
+      skipped               - 其他
+    """
+    try:
+        record = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime()),
+            "session_id": req.session_id,
+            "question": (req.question or "")[:200],
+            "analysis_type": req.analysis_type or "auto",
+            "agent_decision": agent_decision,
+            "deprecated": deprecated,
+        }
+        with _CHAT_INGRESS_LOG.open("a", encoding="utf-8", newline="") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except Exception as exc:  # 落盘失败不能影响 /chat 主流程
+        print(f"[chat_ingress] log write failed: {exc}", flush=True)
 
 app = FastAPI(title="Market WebChat OpenClaw Adapter", version="1.0.0")
 app.add_middleware(
@@ -291,19 +323,39 @@ def build_market_agent_message(req: ChatRequest) -> str:
         "time_range": req.time_range,
         "max_cycles": req.max_cycles,
         "routing_contract": {
-            "ordinary_chat": "Answer in the current market_strategy OpenClaw session.",
+            "ordinary_chat": (
+                "非市场分析问题 (闲聊 / 状态查询 / 文件说明) -> 在当前 market_strategy 会话直接答。"
+            ),
             "complex_market_task": (
-                "If analysis_type is business_analysis, opportunity_assessment, "
-                "comprehensive_research, or policy_impact, call sessions_send("
-                "agentId='strategy-orchestrator', ...) and pass session_id, callback_url, "
-                "and the full callback_helper block."
+                "【必先 sessions_send, 禁止自答】 (2026-07-01 老大精细化纠错): "
+                "当 analysis_type 命中以下任一市场战略枚举时, "
+                "你 (market_strategy agent) 必须先用 sessions_send(agentId='strategy-orchestrator', ...) "
+                "把任务包 (含 session_id / callback_url / require_callback=True / parent_id) 转发给编排专家, "
+                "等待 phase=Plan 阶段事件回到 callback, 不要在没有 Plan 事件时声称'已分析完'。\n"
+                "硬规则:\n"
+                "  ① analysis_type 命中以下枚举 -> 必先转: business_analysis / opportunity_assessment / "
+                "comprehensive_research / policy_impact / competitor_analysis / market_overview\n"
+                "  ② analysis_type='auto' (chat.html 默认) -> 不要凭字段缺失就甩锅, "
+                "先用 LLM 能力对 user_message 做语义判断, 若属于市场战略类 -> 转; 若属于闲聊类 -> 自答\n"
+                "  ③ 字段缺失 / 字面不匹配 / 不确定时 -> LLM 语义判断优先, 不要'不确定就转'\n"
+                "  ④ 触发转发的明确边界: 问题语义包含 '竞争格局 / 战略 / 政策 / 机会 / 综合研究 / 商业模式 / "
+                "市场趋势 / 销量分析 / 品牌对比' 任一关键词 -> 转; 否则 -> 自答"
             ),
             "callback_requirement": (
                 "The downstream strategy-orchestrator must emit each ReAct event with callback_helper. "
                 "Do not use curl -X POST. PowerShell treats curl as Invoke-WebRequest and can break headers. "
                 "For every delegated Agent, send a substep_created event when it starts, then substep_updated "
                 "events as it runs, using stable node_id and parent_id so chat.html can render a nested task tree. "
-                "The final callback should include phase='Complete' and report or answer."
+                "The final callback should include phase='Complete' and report or answer. "
+                "【必先 ping】market_strategy 在转交任务后, 必须先观察至少一个 phase=Plan 事件回到 callback, "
+                "才能宣告任务已启动; 没有 Plan 事件 = 自答 (P0 违规)。"
+            ),
+            "fallback_visibility": (
+                "【兜底可见性】如果 market_strategy 在 60s 内没有让 strategy-orchestrator 上报 phase=Plan, "
+                "adapter 会自动向 SSE 推 'self_answered' warning 事件, 前端 chat.html 会显示 "
+                "'小市场直接答了, 未走 strategy-orchestrator' 警告横幅。这是 P0 违规, "
+                "小市场必须在收到 chat.html / 飞书任务后, 第一时间执行 sessions_send 转发, "
+                "不要等 user 催、不要凭印象自答。"
             ),
         },
     }
@@ -379,6 +431,23 @@ async def _run_gateway_turn(req: ChatRequest) -> None:
         )
 
 
+# B4 兜底 (2026-07-01 老大授权): 启动后台 periodic safety check
+_safety_task: Optional[asyncio.Task] = None
+
+
+@app.on_event("startup")
+async def _b4_safety_startup() -> None:
+    global _safety_task
+    _safety_task = asyncio.create_task(session_manager.periodic_safety_check())
+
+
+@app.on_event("shutdown")
+async def _b4_safety_shutdown() -> None:
+    global _safety_task
+    if _safety_task is not None and not _safety_task.done():
+        _safety_task.cancel()
+
+
 @app.get("/health")
 async def health() -> Dict[str, Any]:
     return {
@@ -391,10 +460,90 @@ async def health() -> Dict[str, Any]:
 
 
 @app.post("/chat")
-async def chat(req: ChatRequest) -> Dict[str, Any]:
+async def chat(req: ChatRequest, request: Request) -> Dict[str, Any]:
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="question cannot be empty")
+    # B2: 在 Pydantic 验证前拿 raw analysis_type, 用于 chat_ingress.jsonl 准确标 deprecated
+    # (Pydantic validator 会把旧值改写为新值, 之后看 req.analysis_type 就丢了原始信息)
+    raw_analysis_type = None
+    try:
+        raw_body = await request.json()
+        raw_analysis_type = raw_body.get("analysis_type") if isinstance(raw_body, dict) else None
+    except Exception:
+        pass
+    is_deprecated = raw_analysis_type in DEPRECATED_ANALYSIS_TYPES
+    # B3 补充: 如果 raw 值是未知 (Pydantic 会 ValidationError -> 422), 这里提前转 400
+    if (
+        raw_analysis_type is not None
+        and raw_analysis_type != ""
+        and raw_analysis_type not in DEPRECATED_ANALYSIS_TYPES
+        and raw_analysis_type not in {
+            "auto",
+            "business_analysis",
+            "opportunity_assessment",
+            "comprehensive_research",
+            "policy_impact",
+            "competitor_analysis",
+            "market_overview",
+        }
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "deprecated_analysis_type",
+                "received": raw_analysis_type,
+                "allowed": [
+                    "auto",
+                    "business_analysis",
+                    "opportunity_assessment",
+                    "comprehensive_research",
+                    "policy_impact",
+                    "competitor_analysis",
+                    "market_overview",
+                ],
+                "hint": "前端 chat.html 需升级到最新版本 (分析类型下拉枚举已对齐 TOOLS.md)",
+            },
+        )
+    # B3: Literal 收紧 analysis_type (2026-07-01 老大确认)
+    # chat.html 历史客户端可能传旧枚举值 (competitor / market / comprehensive / 等), 此处:
+    # - 若值是 None / "auto" / 已是新枚举 -> 接受
+    # - 若值是旧枚举 -> 改写为新枚举 (过渡期兼容) + 在 chat_ingress.jsonl 标 deprecated=true
+    # - 若值是完全未知 -> 返 400 + {"error": "deprecated_analysis_type", "hint": [...新枚举值]}
+    # 注意: Pydantic Literal 在 Optional 模式下空字符串会触发 ValidationError, 这里需要 pre-validation
+    if req.analysis_type is not None and req.analysis_type not in {
+        "auto",
+        "business_analysis",
+        "opportunity_assessment",
+        "comprehensive_research",
+        "policy_impact",
+        "competitor_analysis",
+        "market_overview",
+    }:
+        if req.analysis_type == "":
+            req.analysis_type = "auto"
+        elif req.analysis_type in DEPRECATED_ANALYSIS_TYPES:
+            req.analysis_type = DEPRECATED_ANALYSIS_TYPES[req.analysis_type]
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "deprecated_analysis_type",
+                    "received": req.analysis_type,
+                    "allowed": [
+                        "auto",
+                        "business_analysis",
+                        "opportunity_assessment",
+                        "comprehensive_research",
+                        "policy_impact",
+                        "competitor_analysis",
+                        "market_overview",
+                    ],
+                    "hint": "前端 chat.html 需升级到最新版本 (分析类型下拉枚举已对齐 TOOLS.md)",
+                },
+            )
     await session_manager.mark_running(req.session_id)
+    # B2: /chat 接到的每一题都落 JSONL (不靠 agent 自觉), agent_decision 初值 pending
+    _log_chat_ingress(req, agent_decision="pending", deprecated=is_deprecated)
     await session_manager.push(
         req.session_id,
         "react",

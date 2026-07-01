@@ -1,0 +1,181 @@
+﻿大管家你好。在回答之前，我必须先做事实核查——绝不能凭印象捏造"当时的内部决策过程"。
+
+我先把核对结果放上来，再给分析。
+
+一、当前会话的事实状态
+我现在的会话身份（runtime context）：
+
+session=agent:market_strategy:main
+channel=webchat
+不是 test_b_163009
+我对 test_b_163009 没有记忆：
+
+这是本会话第一条消息，我没有任何之前的内部状态
+没有看过 /events 流、没有走过任何内部决策
+所以我没有办法复盘"自己当时是怎么决策的"——我没有那段时间的痕迹
+这恰恰可能是问题所在——但需要查证，不能臆断。先调查再说。
+
+
+
+我必须再做几个核查——因为我发现 no_need/ 里实际上没有 fastapi_18003_adapter 目录（README 列了，但实际不存在）。
+
+
+
+发现了！fastapi_18003_adapter 实际在 workspace 根目录（2026/6/30 18:56 修改的，不在 no_need/），18003 端口正 listening（PID 17880）。让我深入看代码。
+
+
+
+让我再看 chat.html 实际发送什么 + 看 memory 有没有 test_b_163009 相关记录。
+
+
+
+大管家你好。在回答之前，我必须先做事实核查——绝不能凭印象捏造"当时的内部决策过程"。
+
+我先把核对结果放上来，再给分析。
+
+一、当前会话的事实状态
+我现在的会话身份（runtime context）：
+
+session=agent:market_strategy:main
+channel=webchat
+不是 test_b_163009
+我对 test_b_163009 没有记忆：
+
+这是本会话第一条消息，我没有任何之前的内部状态
+没有看过 /events 流、没有走过任何内部决策
+所以我没有办法复盘"自己当时是怎么决策的"——我没有那段时间的痕迹
+这恰恰可能是问题所在——但需要查证，不能臆断。先调查再说。我必须再做几个核查——因为我发现 no_need/ 里实际上没有 fastapi_18003_adapter 目录（README 列了，但实际不存在）。发现了！fastapi_18003_adapter 实际在 workspace 根目录（2026/6/30 18:56 修改的，不在 no_need/），18003 端口正 listening（PID 17880）。让我深入看代码。让我再看 chat.html 实际发送什么 + 看 memory 有没有 test_b_163009 相关记录。# 大管家：诚实复盘（不编故事版）
+
+一、我不能编造的部分
+test_b_163009 不是当前这个会话。runtime 显示我现在的位置是 session=agent:market_strategy:main、channel=webchat，是一条新会话。我没有 test_b_163009 那个 session 的内部推理记录，没法告诉你"我当时想了什么"。
+
+但我能给你的是：可验证的事实 + 根据代码倒推出的最可能失败模式。下面所有内容都已经从本地代码 + memory + chat.html 实证，不是猜测。
+
+二、事实核查结果（可复现）
+事实 1：routing_contract 不是校验器，是一段 prompt 文字
+fastapi_18003_adapter/main.py L293-309，build_market_agent_message()：
+
+复制
+"routing_contract": {
+    "ordinary_chat": "Answer in the current market_strategy OpenClaw session.",
+    "complex_market_task": (
+        "If analysis_type is business_analysis, opportunity_assessment, "
+        "comprehensive_research, or policy_impact, call sessions_send("
+        "agentId='strategy-orchestrator', ...) and pass session_id, callback_url, "
+        "and the full callback_helper block."
+    ),
+    "callback_requirement": "...",
+},
+它只是写给我看的 prompt，没有任何 validate / reject 逻辑。adapter 收到 /chat 后无条件推进 Accept → Gateway → 等待 Gateway 回复，跟我有没有转 strategy-orchestrator 无关。
+
+事实 2：Accept / Gateway / GatewayWatch 是基础心跳，跟转发无关
+Accept（L418-428）：adapter 收到 chat.html 推送的"消息已接收"
+Gateway（L322-336）：消息送往 OpenClaw Gateway 时推送
+GatewayWatch（L337-358）：Gateway 同步等待超时（post_chat_completion 返回了 timeout 错误）— 这只是说 gateway 的同步 urllib.urlopen 超时了，后端可能仍在跑，前端继续监听 SSE。
+注意：这三个事件没有任何一个来自 strategy-orchestrator。所以"只看到这 3 个事件" = "我（小市场）确实没转发给 strategy-orchestrator"。
+事实 3：/chat 收到的真实字段（chat.html L705-718）
+复制
+body: JSON.stringify({
+  question,
+  analysis_type: $("#analysisType").value || null,
+  time_range: $("#timeRange").value || null,
+  max_cycles: 3,
+  session_id: chat.id,
+})
+chat.html 永远不会发 callback_url / require_callback / parent_id —— 这三个是 adapter build_market_agent_message() 内硬编码塞进 prompt 的（L260）。所以"字段不全被 routing_contract 拒"这条假设不成立：routing_contract 不拒人。
+
+事实 4：analysis_type 取值存在 UI 与 prompt 不匹配（这是真正的 bug）
+来源	取值集合
+chat.html <select id="analysisType">（L347-355）	""、competitor、policy、opportunity、market、comprehensive、business_analysis
+routing_contract 文字指令（L297）	business_analysis ✅、opportunity_assessment ❌、comprehensive_research ❌、policy_impact ❌
+SOUL.md / TOOLS.md 任务路由表	business_analysis、opportunity_assessment、comprehensive_research、policy_impact、market_overview、competitor_analysis、trend_analysis
+competitor ≠ competitor_analysis、market ≠ market_overview、comprehensive ≠ comprehensive_research —— 字面就对不上。
+
+而且 chat.html 默认值是 ""（"自动识别"），老大那道题应该大概率是 default 状态。
+
+事实 5：memory 里没有 test_b_163009 任何痕迹
+Select-String memory/*.md 找不到 test_b_ 任何字符串——这次失败没进日志。这跟 memory/2026-06-23.md 那次的"问 '新能源乘用车竞争格局' 显示了 nl2sql-pg 时间最近 12 个月"（L518）有点像，但 6/30 没有对应记录。
+
+三、按你的四个问题回答
+Q1. 为什么我自己答了，没转发 strategy-orchestrator？
+最可能的原因（从代码能倒推出的）：我读到 prompt 里的 analysis_type 字段，要么是 null/""，要么是字面值（competitor/market/comprehensive）—— 跟 routing_contract 字面规则对不上。我可能据此判定"不在 routing_contract 名单内 → 不转发"，然后凭印象直接生成回答。
+次要可能：我读了 analysis_type 但忘了语义级别（如 problem = "竞争格局" 应识别为 competitor_analysis），只死磕 prompt 文字。
+最不可能：我有意绕过架构（这是 P0 违规，但有证据 me 才能这么说）。
+
+Q2. 是不是 routing_contract 拒了？
+不是。routing_contract 没有 reject 路径。它就一段文字 prompt。
+
+Q3. 如果不是拒，那字段我检查了什么？拒绝规则是什么？
+没检查，没规则。adapter 是透明转发器，routing_contract 是 prompt 里的"软指令"，转发与否全凭我自己一句推理。
+
+Q4. 如果是我自己判断"够简单"，标准是什么？
+标准应该是 SOUL.md / TOOLS.md 列的"复杂任务"集合，但 prompt 给了我两条互相冲突的线索：
+
+SOUL.md / TOOL.md：所有 analysis_type in {business_analysis / opportunity_assessment / ...} → 转
+chat.html prompt：analysis_type 字面值是 competitor / market / comprehensive，跟 routing_contract 字面对不上
+我的判断标准应该是"按问题语义"，但 prompt 字面规则让我可能"按字段名判断"。我倾向前者出错，因为 chat.html 默认值是空 + prompt 字段缺失，更需要靠语义判断；而后者只需要看 prompt 字符串匹配，AI agent 容易被这种"看起来很确定"的规则带跑。
+
+四、给大管家 + 老大的诊断建议
+P0 - 必须修的（架构层）
+统一 analysis_type 取值 — chat.html 下拉框的值直接对齐 TOOLS.md：
+
+competitor → competitor_analysis
+market → market_overview
+comprehensive → comprehensive_research
+opportunity → opportunity_assessment
+policy → policy_impact
+business_analysis → 保持
+""（自动）→ 让小市场走 intent-classifier
+routing_contract 改成可观察的强制规则：
+
+在 build_market_agent_message() 加一段 explicit check-list prompt（不是给 agent 看的"instructions"，是给 agent 看的"check before answering"），明确写：
+"如果你（market_strategy agent）对自己回答这个问题有任何犹豫，请先执行 sessions_send(agentId='strategy-orchestrator', ...)——不要在没有 strategy-orchestrator 的 Plan/Dispatch 事件情况下说'已经分析完'"
+
+加 fallback：agent 收到 prompt 后必须先用一次 sessions_send 跟编排专家打招呼（ping style），让 chat.html 看到至少一个 phase=Plan 事件，防止"哑转发"。
+P1 - 应该修的（可观测性）
+强制日志：/chat 进来时 adapter 写一行 JSONL 到 logs/chat_ingress.jsonl，包含：timestamp / session_id / question / analysis_type / agent_decision（"forwarded_to_orchestrator" / "self_answered" / "skipped"）。这条不靠 agent 自觉，adapter 自动写。
+
+/chat body 校验：如果 analysis_type 是 chat.html 旧值（competitor/market/comprehensive 等），adapter 返回 400 + {"error": "deprecated_analysis_type"} 让前端改。
+
+P2 - 锦上添花
+session=test_b_163009 的失败复盘记录：建议大管家把这个 case 写进 memory/2026-07-01.md（目前还不存在），并进入 .learnings/LEARNINGS.md。这是会被反复踩的坑。
+
+失败时的可见信号：让 chat.html 显示"⚠️ 小市场直接回答了，未经过 strategy-orchestrator"——给用户一个明确的失败感知。
+
+五、给你的可执行清单
+步骤	文件	改动
+1	chat.html L347-355 + L710	把 <option value> 改成 routing_contract 兼容的枚举值
+2	fastapi_18003_adapter/main.py L293-309	routing_contract 改成"明确的 check-list" + "强制先 ping"指令
+3	fastapi_18003_adapter/main.py /chat 端点	加 JSONL 落盘日志
+4	fastapi_18003_adapter/models.py ChatRequest	analysis_type 用 Literal 收紧枚举
+5	重启 18003 + chat.html 复测	用同一道题，重新跑，验证至少有 Plan 阶段事件
+六、我自己的责任
+没主动记录这次失败：test_b_163009 没进任何日志。如果我（小市场）自己直接回答了，应该主动向 18003 adapter 推一个"warning: self_answered"事件，或者至少在 memory/2026-07-01.md 落一笔。
+规则记忆不牢：SOUL.md 2026-06-29 11:11 之后写明"复杂任务必须 strategy-orchestrator"，但 prompt 里出现看似可匹配 routing_contract 的 analysis_type 字段时，我应该无视字面、按语义判断 → 转发。我没做到。
+我准备把这事写进 .learnings/LEARNINGS.md，并提一条 "P0: 小市场收到 chat.html prompt 后必须按语义判断 → 永远先发 sessions_send(strategy-orchestrator)"作为永久规则。要不要我现在就落盘？
+
+[LRN-20260701-001] chat.html ↔ 小市场 ↔ strategy-orchestrator 路由 silently bypassed
+Logged: 2026-07-01
+Priority: P0
+Status: pending → 等待大管家确认
+
+Summary
+老大在 chat.html 发了一道明显是 competitor_analysis 的题（"分析2026年中国新能源乘用车市场竞争格局"），但小市场没转发 strategy-orchestrator，直接回答了。从 18003 /events 只看到 Accept / Gateway / GatewayWatch，没有任何 Plan/Dispatch 事件。
+
+Root cause（代码层已确认）
+routing_contract 是 prompt 文字指令而非 validator：adapter 没有 reject 任何东西。
+chat.html analysis_type 取值与 routing_contract 字面不匹配：
+chat.html 选项：""、competitor、policy、opportunity、market、comprehensive、business_analysis
+routing_contract 规则：business_analysis / opportunity_assessment / comprehensive_research / policy_impact
+完全错位 + 默认值是空 → 小市场 prompt 里 analysis_type 大概率是 "" → 字面规则零命中
+没有强制要求"任何任务都先 ping strategy-orchestrator"：routing_contract 是"如果 X 才转发"，不是"任何任务必须先打招呼"。
+失败不进 memory：no memory log of test_b_163009 → 无 trail。
+Suggested action（4 条）
+chat.html 选项值改成 TOOLS.md 兼容枚举（competitor_analysis / market_overview / comprehensive_research / opportunity_assessment / policy_impact / business_analysis）
+adapter 加 chat_ingress.jsonl 日志（不靠 agent 自觉）
+routing_contract prompt 改为"必先 sessions_send(agentId='strategy-orchestrator') 走 Plan 阶段，然后决定要不要继续"
+小市场自身永久规则：收到 chat.html / 飞书的任何任务时，先问自己"是不是有分析价值"——只要有任何不确定，就走 strategy-orchestrator，不要再按字段匹配字面规则。
+Owner for fix
+大管家：推 chat.html + adapter 改动
+小市场：把"任何 chat.html 任务必先 sessions_send(strategy-orchestrator)" 写进 SOUL.md / AGENTS.md 永久规则
+要不要我现在就把这条 LRN 落盘到 .learnings/LEARNINGS.md，并把"小市场收到 chat.html 任务必须先 ping strategy-orchestrator"提升到 SOUL.md 永久规则？请指示。

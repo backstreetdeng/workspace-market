@@ -1,0 +1,6 @@
+{"ts": "2026-07-01T19:34:57+0800", "session_id": "test_a3_193457", "question": "分析 2026 年中国新能源乘用车市场竞争格局", "analysis_type": "competitor_analysis", "agent_decision": "pending", "deprecated": false}
+{"ts": "2026-07-01T19:41:01+0800", "session_id": "test_a3_real_194101", "question": "分析 2026 年中国新能源乘用车市场竞争格局", "analysis_type": "auto", "agent_decision": "pending", "deprecated": false}
+{"ts": "2026-07-01T19:57:02+0800", "session_id": "test_b_195702", "question": "分析 2026 年中国新能源乘用车市场竞争格局", "analysis_type": "auto", "agent_decision": "pending", "deprecated": false}
+{"ts": "2026-07-01T20:01:51+0800", "session_id": "test_debug_200150", "question": "分析 2026 年中国新能源乘用车市场竞争格局", "analysis_type": "auto", "agent_decision": "pending", "deprecated": false}
+{"ts": "2026-07-01T20:34:47+0800", "session_id": "test_b_203447", "question": "分析 2026 年中国新能源乘用车市场竞争格局", "analysis_type": "auto", "agent_decision": "pending", "deprecated": false}
+{"ts": "2026-07-01T23:17:00+0800", "session_id": "a3_retest_20260701_231636", "question": "?? 2026 ???????????????", "analysis_type": "competitor_analysis", "agent_decision": "pending", "deprecated": false}

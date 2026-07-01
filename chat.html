@@ -340,12 +340,12 @@
         <div class="composer-options">
           <span>类型</span>
           <select id="analysisType">
-            <option value="">自动识别</option>
-            <option value="competitor">竞品分析</option>
-            <option value="policy">政策影响</option>
-            <option value="opportunity">机会评估</option>
-            <option value="market">市场趋势</option>
-            <option value="comprehensive">综合研究</option>
+            <option value="auto">自动识别</option>
+            <option value="competitor_analysis">竞品分析 (含竞争格局)</option>
+            <option value="policy_impact">政策影响</option>
+            <option value="opportunity_assessment">机会评估</option>
+            <option value="market_overview">市场趋势 / 总览</option>
+            <option value="comprehensive_research">综合研究</option>
             <option value="business_analysis">商业模式分析</option>
           </select>
           <span>时间</span>
@@ -646,7 +646,7 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             question,
-            analysis_type: $("analysisType").value || null,
+            analysis_type: $("analysisType").value || "auto",
             time_range: $("timeRange").value || null,
             max_cycles: 3,
             session_id: chat.id,
