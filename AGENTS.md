@@ -1,4 +1,4 @@
-﻿# AGENTS.md - 市场战略决策智能体工作空间规范
+# AGENTS.md - 市场战略决策智能体工作空间规范
 
 这是 `workspace-market` 的主入口智能体规范。当前架构采用 **Agent 自主编排模式**：主 Agent 负责接收用户问题、判断边界、转交复杂任务、整合并解释最终结果；复杂市场分析的动态调度由 `strategy-orchestrator` 负责。
 
@@ -354,3 +354,36 @@ git config --global https.proxy http://127.0.0.1:7897
 **AGENTS.md 版本**: v4.0
 **更新时间**: 2026-07-01 18:10 GMT+8
 **触发更新原因**: 老大对 LRN-20260701-001 方案的精细化纠正（明确才转 / 不确定 LLM 自答），加 P0 硬约束章节。
+
+
+## 文件读写编码门禁（2026-07-01 老大确认 — P0 硬约束）
+
+老大 18:21 明确："后续保存 md 文件用 utf-8，我看其他 ai 员工都是 utf-8"。
+
+### 规则
+
+| 操作 | 正确方法 | 禁止方法 |
+|------|---------|---------|
+| 写 UTF-8 .md 文件 | Python `open(path, 'w', encoding='utf-8', newline='')` | PowerShell `Out-File -Encoding utf8`（PS 5 默认加 BOM）/ `Add-Content -Encoding utf8` |
+| 写 UTF-8 文件（PS） | `[System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))` | `Out-File -Encoding utf8` |
+| 读 UTF-8 文件 | Python `open(path, 'r', encoding='utf-8')` 或 PS `[System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)` | PowerShell `Get-Content` 默认编码 |
+| byte-verify | 读首 3 字节确认不是 `EF BB BF`（BOM）+ 首字节是中文 UTF-8 范围（`E0-EF`） | — |
+
+### 失败 fast-fail
+
+- 写文件后立刻 byte-verify
+- 发现 BOM：立即重写为 UTF-8 无 BOM，不要带着 BOM 提交
+- 发现 UTF-16 LE 字节：解码为 UTF-8 字节，重写为 UTF-8 无 BOM
+- 发现 mojibake 字符（灏 / 峟 / 皺 / 杩等）：文件编码损坏，按 LRN-20260630-014 修复
+
+### 跨 agent / 跨 channel 文件共享
+
+- 写到 share/ 或 logs/ 等跨 agent 可见目录时，必须保证 UTF-8 无 BOM + LF 行尾 + byte-verify 通过
+- commit message 也必须 UTF-8：通过 `git commit -F -` + stdin raw bytes，**不要**用 `git commit -m "中文"`（PS 会转 UTF-16 LE 写入）
+
+### 参考
+
+- LRN-20260630-013（PowerShell + Windows GBK 陷阱）
+- LRN-20260630-014（LRN-013 反复发生）
+- LRN-20260701-002（info.txt GBK 坑重演）
+- LRN-20260701-004（统一 UTF-8 无 BOM 规则）

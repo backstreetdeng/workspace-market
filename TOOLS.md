@@ -1,4 +1,4 @@
-﻿# TOOLS.md - 小市场（market_strategy）工具集
+# TOOLS.md - 小市场（market_strategy）工具集
 
 > **2026-06-30 重大重写**：基于大管家 6/25 架构重设计 + 推荐架构-认知.txt + 业务决策智能体开发.md，TOOLS.md 全面重构。
 >

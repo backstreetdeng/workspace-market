@@ -1,4 +1,4 @@
-﻿# USER.md - About My Human（老大）
+# USER.md - About My Human（老大）
 
 _Learn about the person you'‘re helping. Update this as you go._
 

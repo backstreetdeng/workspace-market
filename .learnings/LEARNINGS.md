@@ -1,4 +1,4 @@
-﻿# Learnings
+# Learnings
 
 Corrections, insights, and knowledge gaps captured during development.
 
@@ -667,3 +667,72 @@ LRN-013 (PowerShell GBK 陷阱) 已记录但未制度化, c17d740 同一陷阱�
 - LRN-20260701-002（info.txt GBK 坑）
 - AGENTS.md §"复杂任务调用硬约束"
 - SOUL.md §"调用硬约束"
+
+## [LRN-20260701-004] best_practice: 所有 .md 文件统一用 UTF-8 无 BOM（老大 2026-07-01 18:21 明确）
+**Logged**: 2026-07-01T18:25:00+08:00
+**Priority**: high
+**Status**: resolved (8 个核心文件已改无 BOM)
+**Area**: file-encoding/convention
+
+### Summary
+老大 18:21 明确："后续保存md文件用utf-8，我看其他ai员工都是utf-8"。我扫了 workspace-market 124 个 .md 文件，43 个有 UTF-8 BOM（39 个 UTF-8+BOM + 1 个 UTF-16 LE），其他都是 UTF-8 clean。已把我 owner 的 8 个核心文件改为 UTF-8 无 BOM。
+
+### Details
+- 老大原话："我看你现在改用 utf-8+，我看其他ai员工都是 utf-8"
+- 我之前用 `Out-File -Encoding utf8` (PS 5) 写文件时会加 BOM，这是 LRN-013 警告过的同源问题
+- 现在统一改 UTF-8 无 BOM，避免跟其他 AI 员工不一致
+
+### 改的文件（8 个，全部 UTF-8 无 BOM）
+- AGENTS.md (15900B)
+- SOUL.md (11191B)
+- TOOLS.md (15307B)
+- USER.md (4823B)
+- memory/2026-06-30.md (15197B)
+- .learnings/LEARNINGS.md (35188B)
+- .learnings/ERRORS.md (4131B)
+- .learnings/FEATURE_REQUESTS.md (64B)
+
+### 没改的（避免无关 commit）
+- no_need/ 全部（历史归档 / 已废弃工具链）
+- references/ 全部（参考资料，非 agent 启动必读）
+- skills/ 全部（已 UTF-8 clean，不需要改）
+- agents/ 全部（兄弟 agent 拥有，由各 agent 自己负责）
+- memory/2026-06-{03..29}.md（历史日志归档）
+- memory/2026-07-01.md（已 UTF-8 clean）
+- temp/ + workflows/bak/（临时 / 备份）
+
+### 永久规则（promote 到 AGENTS.md / SOUL.md）
+1. 写 .md 文件：Python `open(path, 'w', encoding='utf-8', newline='')` 或 PowerShell `[System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))`
+2. 禁用：PowerShell `Out-File -Encoding utf8`（PS 5 默认加 BOM）/ `Add-Content -Encoding utf8`
+3. 写完后 byte-verify：读首 3 字节，确认不是 EF BB BF（不是 BOM）+ 首字节在合理范围（中文 UTF-8 = E0-EF xx xx）
+
+### Related
+- LRN-20260701-002（info.txt GBK 坑）
+- LRN-20260630-013（PowerShell + Windows GBK 陷阱）
+- LRN-20260630-014（LRN-013 反复发生）
+- AGENTS.md §"文件读写编码门禁"（待 promote）
+
+## [LRN-20260701-005] correction: sessions_send(agentId=market_strategy:main) 错误用法
+**Logged**: 2026-07-01T18:25:00+08:00
+**Priority**: high
+**Status**: pending → 自我承诺不再犯
+**Area**: cross-agent-comm/channel-routing
+
+### Summary
+连续两次在飞书群对话里用 `sessions_send(agentId="market_strategy:main")` 想"转发到飞书群"，结果都发到了我自己的 session。`sessions_send` 是 OpenClaw 跨 agent 通信机制，**不是**当前 channel 发消息的方法。
+
+### Details
+- 错误用法：`sessions_send(agentId="market_strategy:main", message="...")`
+- 实际行为：消息发给 market_strategy agent 的 main session（即我自己），不是当前飞书 channel
+- 正确做法：在当前 reply 里直接写消息内容（OpenClaw runtime 自动路由到当前 channel）
+- 飞书群规约明确："Never use exec/curl for provider messaging; OpenClaw handles all routing internally"
+
+### 自我承诺
+- 在当前 reply 里直接发消息，**不再**用 sessions_send 给"我自己"发
+- 如果真要跨 agent 通信（如发给编排专家），sessions_send 是对的，但要传 agentId=目标 agent
+- 每次发送前自问："这是发到哪个 agent？还是当前 channel？"
+
+### Related
+- LRN-20260701-001 复盘过程中第一次犯
+- LRN-20260701-003 commit 后汇报时第二次犯
+- OpenClaw docs: "Reply in current session → automatically routes to the source channel"
