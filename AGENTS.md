@@ -321,3 +321,36 @@ git config --global https.proxy http://127.0.0.1:7897
 **更新时间**: 2026-06-30 18:29 GMT+8  
 **触发更新原因**: 老大提供大管家 6/25-6/26 架构认知 + 推荐架构-认知.txt + 业务决策智能体开发.md，TOOLS.md/AGENTS.md 全面对齐。
 
+
+## 复杂任务调用硬约束（2026-07-01 老大确认 — P0）
+
+**更新触发**：2026-07-01 老大对 LRN-20260701-001 方案的精细化纠正——明确才转 / 不确定自答用 LLM。
+
+### 触发条件（任一满足即触发 sessions_send(strategy-orchestrator)）
+
+1. chat.html analysis_type **明确**属于市场战略类：
+   - competitor_analysis
+   - market_overview
+   - comprehensive_research
+   - opportunity_assessment
+   - policy_impact
+   - business_analysis
+2. chat.html 没选 / 选了 auto，但用户问题**语义明确**是市场战略类（即使没明说"分析""策略""格局"等关键词）
+
+### 其他情况一律自答（不转 strategy-orchestrator）
+
+- **字段缺失 / 字面对不上 / 我"有任何不确定"** → 走 LLM 能力自答，**不要因为怕错就乱转**（老大明确）
+- 简单解释、文件说明、状态查询、闲聊 → 自答
+- 非市场战略类问题（agent 团队分工、agent 配置、文件操作等） → 自答或转其他 agent
+
+### 执行细节
+
+- 任何 sessions_send 必须传完整任务包（session_id / callback_url / require_callback / parent_id + user_intent / context_state / evidence_feedback / quality_requirements）
+- 自答用 LLM 能力，必须区分事实 / 推断 / 不确定性
+- 失败 fast-fail：自答时如果发现需要数据/分析才能回答，立即转 strategy-orchestrator，不要凭印象答
+
+---
+
+**AGENTS.md 版本**: v4.0
+**更新时间**: 2026-07-01 18:10 GMT+8
+**触发更新原因**: 老大对 LRN-20260701-001 方案的精细化纠正（明确才转 / 不确定 LLM 自答），加 P0 硬约束章节。

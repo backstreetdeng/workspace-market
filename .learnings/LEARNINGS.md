@@ -553,3 +553,117 @@ LRN-013 (PowerShell GBK 陷阱) 已记录但未制度化, c17d740 同一陷阱�
 3. **跨 session**: 所有 LRN critical 项必须 promote 到 AGENTS.md, 不只放 .learnings/
 4. **.gitattributes** 考虑加 *.md text eol=lf 强制 LF
 
+
+## [LRN-20260701-001] critical: chat.html -> xiao_shichang -> strategy-orchestrator 路由 silently bypassed
+**Logged**: 2026-07-01T17:40:00+08:00
+**Priority**: critical
+**Status**: pending -> 等老大拍板 A2/A3 + 大管家接 B 部分
+**Area**: routing/orchestration
+
+### Summary
+老大在 chat.html 发了一道明显是 competitor_analysis 的题（"分析2026年中国新能源乘用车市场竞争格局"），session=test_b_163009，但我（小市场）没转发 strategy-orchestrator，直接回答了。从 18003 /events 只看到 Accept / Gateway / GatewayWatch，没有任何 Plan/Dispatch 事件。老大在飞书群里明确指出：P0 违规，要求保证"小市场接收市场战略任务一定能转给编排专家"。
+
+### Root cause（代码层已确认）
+1. routing_contract 是 prompt 文字指令而非 validator：fastapi_18003_adapter/main.py L293-309 `build_market_agent_message()` 没有任何 validate / reject 逻辑，只是 prompt 里的"软指令"
+2. chat.html analysis_type 取值与 routing_contract 字面不匹配：
+   - chat.html `<select id="analysisType">` (L347-355)：""、competitor、policy、opportunity、market、comprehensive、business_analysis
+   - routing_contract 规则：business_analysis / opportunity_assessment / comprehensive_research / policy_impact
+   - 完全错位 + 默认值是空 -> 我 prompt 里 analysis_type 大概率是 "" -> 字面规则零命中
+3. 没有强制要求"任何任务都先 ping strategy-orchestrator"：routing_contract 是"如果 X 才转发"，不是"任何任务必须先打招呼"
+4. 失败不进 memory：no memory log of test_b_163009 -> 无 trail
+5. 我按字面规则判定"不命中 -> 不转发"，然后凭印象直接生成回答：这是 P0 违规
+
+### Suggested action（5 条）
+1. chat.html 选项值改成 TOOLS.md 兼容枚举（competitor_analysis / market_overview / comprehensive_research / opportunity_assessment / policy_impact / business_analysis）
+2. adapter 加 chat_ingress.jsonl 落盘日志（不靠 agent 自觉）：timestamp / session_id / question / analysis_type / agent_decision
+3. routing_contract prompt 改为"必先 sessions_send(agentId=strategy-orchestrator) 走 Plan 阶段，然后决定要不要继续" + check-list 指令
+4. 小市场自身永久规则：收到 chat.html / 飞书的任何任务时，先问自己"是不是有分析价值"——只要有任何不确定，就走 strategy-orchestrator，不要再按字段匹配字面规则
+5. 兜底可见性：adapter 给 SSE warning 事件 self_answered，前端显示"小市场直接答了，未走 strategy-orchestrator"
+
+### Owner for fix
+- 大管家：推 chat.html 下拉枚举对齐 + adapter 加日志 + /chat 端点 Literal 校验 + routing_contract 改"必先 ping"
+- 小市场 (market_strategy)：把"任何 chat.html 任务必先 sessions_send(strategy-orchestrator)"写进 SOUL.md / AGENTS.md 永久规则 + 自测用同题重跑
+
+### Related
+- LRN-20260630-001（架构认知升级：小市场=前台+路由+最终解释）
+- LRN-20260623-002（前端演示桥接层不能假装调 strategy-orchestrator）
+- SOUL.md §"何时调用 strategy-orchestrator"
+- TOOLS.md §3.1 任务包固定格式
+
+
+## [LRN-20260701-002] correction: logs/info.txt 再次重演 LRN-013/014 GBK 乱码坑
+**Logged**: 2026-07-01T17:40:00+08:00
+**Priority**: high
+**Status**: pending -> 等 promote 到 AGENTS.md 硬约束
+**Area**: encoding/powershell
+
+### Summary
+老大今天 17:40 在飞书群里给我和大管家看 logs/info.txt（小市场之前回复大管家的内容），文件本身是 UTF-8 无 BOM，PowerShell Get-Content 默认按 GBK 解码导致全文乱码。**这正是 LRN-20260630-013 + LRN-20260630-014 反复警告过的同类问题**——encoding 陷阱在跨 agent 文件共享时反复出现，说明只放 .learnings/ 不够，必须 promote 到 AGENTS.md 硬约束。
+
+### Details
+- 文件路径：C:\Users\11489\.openclaw\workspace-market\logs\info.txt（13188 字节）
+- 编码：UTF-8 无 BOM（首 3 字节 = E5 A4 A7 = "大" 的 UTF-8 编码）
+- 错误读取：PowerShell Get-Content 默认 GBK -> 乱码
+- 正确读取：[System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8) -> 8430 字符正常中文
+
+### Root cause（仍是 LRN-013/014 的同一类）
+1. Windows PowerShell console 默认编码是 GBK，UTF-8 文件会被 mojibake
+2. 之前 LRN-013 已记录，但只放 .learnings/，没 promote 到 AGENTS.md / SOUL.md 硬约束
+3. 这次跨 agent 复用文件时再次踩坑——大管家写文件、我读文件都没主动 byte-verify
+4. 老大 17:36 在群里刚发了团队学习通知"PS1 中文编码坑"，我立即表态"记下了"，但 4 分钟后自己读 info.txt 就忘了 byte-verify——典型的"接受学习却不内化"失败
+
+### Suggested action（硬约束升级）
+1. AGENTS.md 新增 §"文件读写编码门禁"硬约束：
+   - 读 UTF-8 文件：Python open(path, encoding=utf-8) 或 PowerShell [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)
+   - 写 UTF-8 文件：Python open(path, 'w', encoding=utf-8, newline='')（保持 LF）
+   - 禁止：PowerShell Get-Content / Add-Content 默认编码
+2. byte-verify checklist：每次写 UTF-8 中文文件后，验证首 3 字节不是 EF BB BF（BOM）+ 全部 LF + 首字节是中文 UTF-8 范围
+3. 跨 agent 共享文件：写到 share/ 或 logs/ 时必须保证 UTF-8 无 BOM + LF 行尾 + byte-verify 通过
+4. 失败 fast-fail：如果 chat.html / 飞书给的内容是 GBK 乱码，立即报错说"文件疑似 GBK mojibake，请用 ReadAllText(..., UTF8) 重新读"，不要假装读懂了
+
+### Owner for fix
+- 小市场：写 AGENTS.md 编码门禁硬约束 + 自测一遍 logs/info.txt 的正确读法
+- 大管家：用 Python 写文件时保证 UTF-8 无 BOM + LF
+
+### Related
+- LRN-20260630-013（PowerShell + Windows GBK 环境下多文件 / 多行代码精确替换陷阱）
+- LRN-20260630-014（LRN-013 已记录但未制度化，c17d740 同一陷阱重复发生）
+- ERRORS.md（团队学习库中老大今早写入的 3 条错误之一）
+
+
+## [LRN-20260701-003] correction: 老大精细化纠正"宁滥勿缺"错误，明确才转 / 不确定自答用 LLM
+**Logged**: 2026-07-01T18:10:00+08:00
+**Priority**: critical
+**Status**: resolved (AGENTS.md + SOUL.md 已落盘硬约束)
+**Area**: routing/decision-rule
+
+### Summary
+老大对 LRN-20260701-001 方案里"宁滥勿缺"那条触发条件**明确不同意**：字段缺失 / 字面对不上 / 我有任何不确定 → 不能转 strategy-orchestrator，要用 LLM 能力自答。只有**明确**是市场战略类才转。
+
+### Details
+- 我原方案第三条："或字段缺失 / 字面对不上路由枚举 / 我有任何不确定这任务是不是战略类 → 转 strategy-orchestrator"
+- 老大纠正："你要是自己都判断不了，那你就自己通过 llm 能力自己回答，只有明确是市场战略类的你才转给编排专家"
+- 这是 P0 决策原则校正：宁滥勿缺反而会让 strategy-orchestrator 被错的任务塞满，降低编排效率 + 浪费 expert agent 算力
+
+### Root cause
+我之前按"宁可错转，不可漏转"思路给规则（typical over-caution），但老大希望：
+- 明确战略类 → 转（让 expert 做）
+- 明确非战略 → 自答
+- 不确定 → 用 LLM 自答（不要把判断责任推给 orchestrator）
+
+这是把"路由决策权"留给我（小市场），不要遇到模糊就降级到 orchestrator。
+
+### Suggested action（已执行）
+1. AGENTS.md §"复杂任务调用硬约束（2026-07-01 老大确认 — P0）" 章节已落盘（v4.0）
+2. SOUL.md §"调用硬约束（2026-07-01 老大确认）" 章节已落盘
+3. 原 LRN-20260701-001 方案里"宁滥勿缺"那条触发条件作废，按老大纠正版本为准
+
+### Owner
+- 小市场：AGENTS.md + SOUL.md 已落盘（待 git commit + push）
+- 大管家：B 部分（chat.html + adapter）仍按 LRN-20260701-001 B1-B4 执行，不受 A2 精细化影响
+
+### Related
+- LRN-20260701-001（路由 bypass P0，本条更新其"宁滥勿缺"触发条件）
+- LRN-20260701-002（info.txt GBK 坑）
+- AGENTS.md §"复杂任务调用硬约束"
+- SOUL.md §"调用硬约束"
